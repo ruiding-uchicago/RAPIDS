@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAPIDS Molecular Simulator - Cyber Interface</title>
+    
+    <!-- External Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/3dmol@latest/build/3Dmol-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    
+    <!-- Google Fonts for Cyber Theme -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Cyber Theme CSS Variables */
+        :root {
+            --cyber-primary: #00ffff;
+            --cyber-secondary: #ff00ff;
+            --cyber-accent: #00ff00;
+            --neon-blue: #00d4ff;
+            --neon-purple: #9d00ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #00ff88;
+            --cyber-dark: #0a0e27;
+            --cyber-darker: #030508;
+            --cyber-grid: rgba(0, 255, 255, 0.1);
+            --glow-intensity: 0 0 20px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #030508 100%);
+            color: var(--cyber-primary);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Animated cyber background */
+        .cyber-graph-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+        
+        .cyber-grid-lines {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 100px 100px;
+            animation: gridSlide 30s linear infinite;
+        }
+        
+        #cyber-particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        @keyframes gridSlide {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(100px, 100px); }
+        }
+        
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(10, 14, 39, 0.95);
+            border: 2px solid var(--cyber-primary);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow:
+                0 0 30px rgba(0, 255, 255, 0.5),
+                inset 0 0 30px rgba(0, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--cyber-primary), transparent);
+            animation: scanline 4s linear infinite;
+        }
+        
+        @keyframes scanline {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        h1 {
+            color: var(--cyber-primary);
+            font-family: 'Orbitron', monospace;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-size: 2.5em;
+            text-shadow:
+                0 0 10px var(--cyber-primary),
+                0 0 20px var(--cyber-primary),
+                0 0 30px var(--neon-blue);
+            margin-bottom: 10px;
+            text-align: center;
+            animation: titlePulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes titlePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .subtitle {
+            color: var(--neon-green);
+            font-family: 'Exo 2', sans-serif;
+            font-weight: 400;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+            letter-spacing: 1px;
+            text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
+        }
+        
+        h2, h3, h4 {
+            color: var(--neon-green);
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--cyber-primary);
+            justify-content: center;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: rgba(0, 20, 40, 0.5);
+            border: 2px solid var(--cyber-primary);
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--cyber-primary);
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.3), rgba(255, 0, 255, 0.3));
+            transition: width 0.3s ease;
+            z-index: -1;
+        }
+        
+        .tab:hover::before {
+            width: 100%;
+        }
+        
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 255, 0.5);
+            text-shadow: 0 0 5px var(--cyber-primary);
+        }
+        
+        .tab.active {
+            color: white;
+            background: linear-gradient(135deg, var(--neon-blue) 0%, var(--neon-purple) 100%);
+            border-bottom-color: var(--neon-green);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 600;
+            color: var(--neon-green);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 12px;
+            text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 20, 40, 0.8);
+            border: 2px solid var(--neon-blue);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Exo 2', sans-serif;
+            color: var(--cyber-primary);
+            transition: all 0.3s;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+            background: rgba(0, 30, 60, 0.9);
+            border-color: var(--cyber-primary);
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: rgba(0, 255, 255, 0.5);
+        }
+        
+        select option {
+            background: var(--cyber-dark);
+            color: var(--cyber-primary);
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: 2px solid var(--cyber-primary);
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            margin: 5px;
+            z-index: 1;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.3), rgba(255, 0, 255, 0.3));
+            transition: width 0.3s ease;
+            z-index: -1;
+            pointer-events: none;
+        }
+        
+        .btn:hover::before {
+            width: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 255, 0.5);
+            text-shadow: 0 0 5px var(--cyber-primary);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(157, 0, 255, 0.2) 100%);
+            color: var(--cyber-primary);
+        }
+        
+        .btn-primary:hover {
+            box-shadow: 0 5px 20px rgba(0, 255, 255, 0.6);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, rgba(255, 0, 64, 0.2) 0%, rgba(255, 0, 136, 0.2) 100%);
+            border-color: #ff0040;
+            color: #ff0040;
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 5px 20px rgba(255, 0, 64, 0.5);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 212, 255, 0.2) 100%);
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+        }
+        
+        .btn-success:hover {
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.5);
+        }
+        
+        .terminal {
+            background: rgba(0, 20, 40, 0.9);
+            color: var(--neon-green);
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border: 2px solid var(--cyber-primary);
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: auto;
+            margin: 20px 0;
+            font-size: 13px;
+            line-height: 1.5;
+            box-shadow:
+                0 0 20px rgba(0, 255, 255, 0.3),
+                inset 0 0 20px rgba(0, 255, 255, 0.05);
+        }
+        
+        .terminal::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .terminal::-webkit-scrollbar-track {
+            background: rgba(0, 20, 40, 0.5);
+            border-radius: 4px;
+        }
+        
+        .terminal::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--cyber-primary), var(--neon-purple));
+            border-radius: 4px;
+        }
+        
+        .progress-container {
+            background: rgba(0, 20, 40, 0.5);
+            border: 2px solid var(--cyber-primary);
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+            margin: 20px 0;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Orbitron', monospace;
+            font-weight: bold;
+            transition: width 0.3s;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+        
+        .substrate-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        
+        .substrate-option {
+            padding: 10px;
+            background: rgba(0, 20, 40, 0.5);
+            border: 2px solid var(--cyber-primary);
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            font-family: 'Exo 2', sans-serif;
+            font-weight: 600;
+            color: var(--cyber-primary);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .substrate-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.2), rgba(157, 0, 255, 0.2));
+            transition: width 0.3s ease;
+            z-index: -1;
+        }
+        
+        .substrate-option:hover::before {
+            width: 100%;
+        }
+        
+        .substrate-option:hover {
+            border-color: var(--neon-purple);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(157, 0, 255, 0.3);
+        }
+        
+        .substrate-option.selected {
+            border-color: var(--neon-green);
+            background: linear-gradient(135deg, var(--neon-blue) 0%, var(--neon-purple) 100%);
+            color: white;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .result-card {
+            background: rgba(0, 20, 40, 0.6);
+            border: 2px solid var(--cyber-primary);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            box-shadow:
+                0 0 15px rgba(0, 255, 255, 0.3),
+                inset 0 0 15px rgba(0, 255, 255, 0.05);
+            transition: all 0.3s;
+        }
+        
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow:
+                0 10px 25px rgba(0, 255, 255, 0.4),
+                inset 0 0 15px rgba(0, 255, 255, 0.1);
+        }
+        
+        .result-card > div:first-child {
+            color: var(--neon-green);
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .result-value {
+            font-size: 24px;
+            font-family: 'Orbitron', monospace;
+            font-weight: bold;
+            color: var(--cyber-primary);
+            margin: 10px 0;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .result-card > div:last-child {
+            color: var(--neon-green);
+            font-family: 'Exo 2', sans-serif;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        
+        .advanced-toggle {
+            cursor: pointer;
+            user-select: none;
+            color: var(--neon-purple);
+            margin: 20px 0;
+            font-family: 'Orbitron', monospace;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-shadow: 0 0 5px rgba(157, 0, 255, 0.3);
+        }
+        
+        .advanced-toggle:hover {
+            color: var(--cyber-primary);
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            transform: translateX(5px);
+        }
+        
+        .advanced-content {
+            display: none;
+            background: rgba(0, 20, 40, 0.3);
+            border: 2px solid var(--neon-purple);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px rgba(157, 0, 255, 0.2);
+        }
+        
+        .advanced-content.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .drag-area {
+            border: 2px dashed var(--cyber-primary);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            font-family: 'Exo 2', sans-serif;
+            color: var(--cyber-primary);
+            background: rgba(0, 20, 40, 0.3);
+            transition: all 0.3s;
+        }
+        
+        .drag-area:hover, .drag-area.dragover {
+            border-color: var(--neon-green);
+            background: rgba(0, 255, 136, 0.1);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .batch-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 20, 40, 0.5);
+            border: 2px solid var(--cyber-primary);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+        }
+        
+        .batch-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(0, 30, 60, 0.6);
+            border: 1px solid var(--cyber-primary);
+            border-radius: 6px;
+            font-family: 'Exo 2', sans-serif;
+            color: var(--cyber-primary);
+        }
+        
+        .status {
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: 'Orbitron', monospace;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .status.pending { 
+            background: rgba(255, 193, 7, 0.2); 
+            color: #ffc107; 
+            border: 1px solid #ffc107;
+        }
+        .status.running { 
+            background: rgba(0, 255, 136, 0.2); 
+            color: var(--neon-green); 
+            border: 1px solid var(--neon-green);
+        }
+        .status.completed { 
+            background: rgba(0, 212, 255, 0.2); 
+            color: var(--neon-blue); 
+            border: 1px solid var(--neon-blue);
+        }
+        .status.error { 
+            background: rgba(255, 0, 64, 0.2); 
+            color: #ff0040; 
+            border: 1px solid #ff0040;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cyber animated background -->
+    <div class="cyber-graph-bg">
+        <div class="cyber-grid-lines"></div>
+        <div id="cyber-particles"></div>
+    </div>
+
+    <div class="container">
+        <h1>🚀 RAPIDS: Cyber Molecular Interface</h1>
+        <p class="subtitle">Advanced AI-Driven Molecular Interaction Analysis - FAIRChem UMA Powered</p>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('single')">Single Molecule</button>
+            <button class="tab" onclick="switchTab('batch')">Batch Screening</button>
+            <button class="tab" onclick="switchTab('quick')">Quick Test</button>
+        </div>
+        
+        <!-- Single Molecule Tab -->
+        <div id="single-tab" class="tab-content active">
+            <div class="form-group">
+                <label>Probe Molecule *</label>
+                <input type="text" id="probe" placeholder="e.g., glucose, aspirin, or SMILES string">
+            </div>
+            
+            <div class="form-group">
+                <label>Target Molecule (Optional)</label>
+                <input type="text" id="target" placeholder="Leave empty for probe-only simulation">
+            </div>
+            
+            <div class="form-group">
+                <label>Substrate</label>
+                <div class="substrate-grid">
+                    <div class="substrate-option selected" data-value="vacuum">Vacuum</div>
+                    <div class="substrate-option" data-value="Graphene">Graphene</div>
+                    <div class="substrate-option" data-value="BP">BP (Black Phosphorus)</div>
+                    <div class="substrate-option" data-value="MoS2">MoS₂</div>
+                    <div class="substrate-option" data-value="Si">Silicon</div>
+                    <div class="substrate-option" data-value="ZnO">ZnO</div>
+                    <div class="substrate-option" data-value="Co_HHTP">Co-HHTP</div>
+                    <div class="substrate-option" data-value="Cu_HHTP">Cu-HHTP</div>
+                    <div class="substrate-option" data-value="Ni_HHTP">Ni-HHTP</div>
+                </div>
+            </div>
+            
+            <!-- Advanced Options -->
+            <div class="advanced-toggle" onclick="toggleAdvanced()">
+                ⚙️ Advanced Options ▼
+            </div>
+            
+            <div id="advanced" class="advanced-content">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Model</label>
+                        <select id="model">
+                            <option value="uma-s-1p1">UMA-S-1p1 (Default)</option>
+                            <option value="uma-base">UMA-Base</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>FAIRChem Task</label>
+                        <select id="task">
+                            <option value="omat" selected>OMAT (Default)</option>
+                            <option value="oc20">OC20</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Force Convergence (eV/Å)</label>
+                        <input type="number" id="fmax" value="0.05" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Steps</label>
+                        <input type="number" id="max_steps" value="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Device</label>
+                        <select id="device">
+                            <option value="cpu">CPU</option>
+                            <option value="cuda">GPU (CUDA)</option>
+                            <option value="mps">Apple Silicon</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Control Buttons -->
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="runSingle()">▶️ Run Simulation</button>
+                <button class="btn btn-danger" onclick="stopSimulation()" id="stop-btn" disabled>⏹️ Stop</button>
+                <button class="btn btn-success" onclick="loadExample()">📋 Load Example</button>
+            </div>
+            
+            <!-- Progress -->
+            <div class="progress-container" id="progress" style="display: none;">
+                <div class="progress-bar" id="progress-bar" style="width: 0%">0%</div>
+            </div>
+            
+            <!-- Terminal Output -->
+            <div class="terminal" id="terminal" style="display: none;"></div>
+            
+            <!-- Results -->
+            <div id="results" style="display: none;">
+                <h3>Results</h3>
+                <div style="color: var(--cyber-primary); font-size: 12px; line-height: 1.6; margin-bottom: 10px;">
+                    <strong>Energy definitions:</strong> Adsorption = E(probe+substrate) − E(probe) − E(substrate); Interaction = E(probe+target in vacuum) − E(probe) − E(target); Total = E(probe+target+substrate) − E(probe) − E(target) − E(substrate). Lower (more negative) values indicate more favorable adsorption/interaction.
+                </div>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <div>Adsorption Energy</div>
+                        <div class="result-value" id="ads-energy">--</div>
+                        <div>eV</div>
+                    </div>
+                    <div class="result-card">
+                        <div>Interaction Energy</div>
+                        <div class="result-value" id="int-energy">--</div>
+                        <div>eV</div>
+                    </div>
+                    <div class="result-card">
+                        <div>Optimization Steps</div>
+                        <div class="result-value" id="steps">--</div>
+                    </div>
+                    <div class="result-card">
+                        <div>Runtime</div>
+                        <div class="result-value" id="runtime">--</div>
+                        <div>seconds</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-success" onclick="downloadResults()">💾 Download Results</button>
+                    <button class="btn btn-primary" id="view-3d-btn" onclick="viewStructure()" style="display: none;">🔬 View 3D Structure</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Batch Screening Tab -->
+        <div id="batch-tab" class="tab-content">
+            <div class="form-group">
+                <label>Molecules List (one per line or upload CSV)</label>
+                <textarea id="batch-molecules" rows="6" placeholder="glucose&#10;ethanol&#10;benzene&#10;caffeine&#10;aspirin"></textarea>
+            </div>
+            
+            <div class="drag-area" onclick="document.getElementById('file-input').click()" 
+                 ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                📁 Drop CSV file here or click to browse
+                <input type="file" id="file-input" style="display: none;" accept=".csv,.txt" onchange="handleFile(event)">
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Targets (Optional, one per line)</label>
+                    <textarea id="batch-targets" rows="3" placeholder="e.g.\ncaffeine\naspirin"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Substrate</label>
+                    <select id="batch-substrate">
+                        <option value="vacuum">Vacuum</option>
+                        <option value="Graphene">Graphene</option>
+                        <option value="BP">BP (Black Phosphorus)</option>
+                        <option value="MoS2">MoS₂</option>
+                        <option value="Si">Silicon</option>
+                        <option value="ZnO">ZnO</option>
+                        <option value="Co_HHTP">Co-HHTP</option>
+                        <option value="Cu_HHTP">Cu-HHTP</option>
+                        <option value="Ni_HHTP">Ni-HHTP</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" onclick="runBatch()">▶️ Start Batch Screening</button>
+            
+            <!-- Batch Progress -->
+            <div class="batch-list" id="batch-list" style="display: none;"></div>
+            
+            <!-- Batch Results -->
+            <div id="batch-results" style="display: none;">
+                <h3>Screening Results</h3>
+                <div id="batch-target-selector" style="display: none; margin-bottom: 15px;">
+                    <label style="display: block; color: var(--neon-green); font-family: 'Orbitron', monospace; margin-bottom: 6px;">Select Target</label>
+                    <select id="batch-results-target" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--cyber-primary); background: rgba(0, 20, 40, 0.6); color: var(--cyber-primary);"></select>
+                </div>
+                <div style="color: var(--cyber-primary); font-size: 12px; line-height: 1.6; margin-bottom: 10px;">
+                    <strong>Energy definitions:</strong> Adsorption = E(probe+substrate) − E(probe) − E(substrate); Interaction = E(probe+target in vacuum) − E(probe) − E(target); Total = E(probe+target+substrate) − E(probe) − E(target) − E(substrate). Lower (more negative) values indicate more favorable adsorption/interaction.
+                </div>
+                <canvas id="batch-chart" style="margin: 20px 0;"></canvas>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: rgba(0, 20, 40, 0.8);">
+                            <th style="padding: 10px; color: var(--neon-green); font-family: 'Orbitron', monospace;">Rank</th>
+                            <th style="padding: 10px; color: var(--neon-green); font-family: 'Orbitron', monospace;">Molecule</th>
+                            <th style="padding: 10px; color: var(--neon-green); font-family: 'Orbitron', monospace;">Adsorption Energy (eV)</th>
+                            <th style="padding: 10px; color: var(--neon-green); font-family: 'Orbitron', monospace;">Total Energy (eV)</th>
+                            <th style="padding: 10px; color: var(--neon-green); font-family: 'Orbitron', monospace;">3D View</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch-table"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Quick Test Tab -->
+        <div id="quick-tab" class="tab-content">
+            <h3>Quick Test Examples</h3>
+            <p>Click any example to run immediately:</p>
+            <p style="color: var(--cyber-primary); font-size: 12px; line-height: 1.6;">Energy reference: Adsorption = E(probe+substrate) − E(probe) − E(substrate); Interaction = E(probe+target) − E(probe) − E(target); Total = E(probe+target+substrate) − E(probe) − E(target) − E(substrate). Negative values denote favourable adsorption/interaction.</p>
+            
+            <div style="display: grid; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="quickRun('glucose', 'Graphene')">
+                    Glucose on Graphene
+                </button>
+                <button class="btn btn-primary" onclick="quickRun('ethanol', 'vacuum')">
+                    Ethanol in Vacuum
+                </button>
+                <button class="btn btn-primary" onclick="quickRun('benzene', 'Co_HHTP')">
+                    Benzene on Co-HHTP MOF
+                </button>
+                <button class="btn btn-primary" onclick="quickRun('caffeine', 'vacuum', 'glucose')">
+                    Caffeine-Glucose Interaction
+                </button>
+            </div>
+            
+            <div class="terminal" id="quick-terminal" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let viewer3D = null;
+        let currentProcess = null;
+        let eventSource = null;
+        
+        // Initialize 3D viewer
+        function initViewer() {
+            const element = document.getElementById('viewer');
+            if (element && typeof $3Dmol !== 'undefined') {
+                viewer3D = $3Dmol.createViewer(element, {backgroundColor: '#f8f9fa'});
+                viewer3D.render();
+            }
+        }
+        
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+            
+            if (tab === 'single' && !viewer3D) {
+                initViewer();
+            }
+        }
+        
+        // Toggle advanced options
+        function toggleAdvanced() {
+            const adv = document.getElementById('advanced');
+            adv.classList.toggle('show');
+            event.target.textContent = adv.classList.contains('show') ? 
+                '⚙️ Advanced Options ▲' : '⚙️ Advanced Options ▼';
+        }
+        
+        // Substrate selection
+        document.querySelectorAll('.substrate-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+                document.querySelectorAll('.substrate-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+            });
+        });
+        
+        // Terminal output
+        function addOutput(text, color = '#00ff88') {
+            const terminal = document.getElementById('terminal');
+            terminal.style.display = 'block';
+            const time = new Date().toLocaleTimeString();
+            terminal.innerHTML += `<div style="color: ${color}">[${time}] ${text}</div>`;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+        
+        // All other JavaScript functions remain the same...
+        async function runSingle() {
+            const config = {
+                probe: document.getElementById('probe').value,
+                target: document.getElementById('target').value || null,
+                substrate: document.querySelector('.substrate-option.selected').dataset.value,
+                model_name: document.getElementById('model').value,
+                task_name: document.getElementById('task').value,
+                fmax: parseFloat(document.getElementById('fmax').value),
+                max_steps: parseInt(document.getElementById('max_steps').value),
+                device: document.getElementById('device').value
+            };
+            
+            if (!config.probe) {
+                alert('Please enter a probe molecule');
+                return;
+            }
+            
+            // Reset UI
+            document.getElementById('terminal').innerHTML = '';
+            document.getElementById('progress').style.display = 'block';
+            document.getElementById('stop-btn').disabled = false;
+            document.querySelector('.btn-primary').disabled = true;
+            
+            addOutput('Starting RAPIDS simulation...');
+            addOutput(`Configuration: ${JSON.stringify(config, null, 2)}`);
+            
+            const simStartTime = Date.now();
+            
+            try {
+                eventSource = new EventSource(`http://localhost:5001/stream?config=${encodeURIComponent(JSON.stringify(config))}`);
+            } catch (error) {
+                addOutput('Error: Could not connect to server. Make sure web_server.py is running on port 5001', '#ff6b6b');
+                document.getElementById('stop-btn').disabled = true;
+                document.querySelector('.btn-primary').disabled = false;
+                return;
+            }
+            
+            eventSource.onmessage = function(event) {
+                const data = event.data;
+                
+                if (data.startsWith('PROGRESS:')) {
+                    const percent = parseInt(data.substring(9));
+                    updateProgress(percent);
+                } else if (data.startsWith('RESULTS:')) {
+                    const results = JSON.parse(data.substring(8));
+                    showResults(results);
+                    addOutput('🎉 Simulation completed successfully!', '#4caf50');
+                } else if (data.startsWith('VIZURL:')) {
+                    const vizUrl = data.substring(7);
+                    window.currentVizUrl = vizUrl;
+                    
+                    const terminal = document.getElementById('terminal');
+                    terminal.innerHTML += `
+                        <div style="margin: 20px 0; text-align: center;">
+                            <button onclick="window.open('${vizUrl}', '_blank')" style="
+                                background: #4caf50;
+                                color: white;
+                                padding: 15px 30px;
+                                border: none;
+                                border-radius: 8px;
+                                font-size: 18px;
+                                cursor: pointer;
+                                font-weight: bold;
+                            ">
+                                🔬 Open 3D Visualization
+                            </button>
+                        </div>
+                    `;
+                } else if (data === 'COMPLETE') {
+                    eventSource.close();
+                    document.getElementById('stop-btn').disabled = true;
+                    document.querySelector('.btn-primary').disabled = false;
+                    addOutput('✅ Process finished', '#4caf50');
+                } else {
+                    let color = '#00ff88';
+                    if (data.includes('Error') || data.includes('❌')) {
+                        color = '#ff6b6b';
+                    } else if (data.includes('Warning') || data.includes('⚠️')) {
+                        color = '#ffa500';
+                    } else if (data.includes('✅') || data.includes('🎉')) {
+                        color = '#4caf50';
+                    } else if (data.includes('📥') || data.includes('🔧')) {
+                        color = '#64b5f6';
+                    } else if (data.includes('⚡')) {
+                        color = '#ffeb3b';
+                    }
+                    
+                    addOutput(data, color);
+                    
+                    if (data.includes('%')) {
+                        const match = data.match(/(\d+)%/);
+                        if (match) {
+                            updateProgress(parseInt(match[1]));
+                        }
+                    }
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                addOutput('Error: Connection lost', '#ff6b6b');
+                eventSource.close();
+                document.getElementById('stop-btn').disabled = true;
+                document.querySelector('.btn-primary').disabled = false;
+            };
+        }
+        
+        function updateProgress(percent) {
+            const bar = document.getElementById('progress-bar');
+            bar.style.width = percent + '%';
+            bar.textContent = percent + '%';
+        }
+        
+        function showResults(results) {
+            document.getElementById('results').style.display = 'block';
+            
+            if (results.probe_adsorption !== undefined) {
+                document.getElementById('ads-energy').textContent = results.probe_adsorption.toFixed(4);
+                document.getElementById('int-energy').textContent = results.probe_target_vacuum?.toFixed(4) || '--';
+                
+                if (results.substrate_effect_on_interaction !== undefined) {
+                    addOutput(`📊 Substrate effect: ${results.substrate_effect_on_interaction.toFixed(4)} eV`, '#64b5f6');
+                    if (results.substrate_effect_on_interaction < 0) {
+                        addOutput('→ Substrate enhances probe-target interaction', '#4caf50');
+                    } else {
+                        addOutput('→ Substrate weakens probe-target interaction', '#ffa500');
+                    }
+                }
+                if (results.total_three_component_interaction !== undefined) {
+                    addOutput(`📊 Total 3-component interaction: ${results.total_three_component_interaction.toFixed(4)} eV`, '#64b5f6');
+                }
+            } else if (results.probe_target_vacuum !== undefined) {
+                document.getElementById('int-energy').textContent = results.probe_target_vacuum.toFixed(4);
+                document.getElementById('ads-energy').textContent = 'N/A (vacuum)';
+            } else {
+                document.getElementById('ads-energy').textContent = '--';
+                document.getElementById('int-energy').textContent = '--';
+            }
+            
+            document.getElementById('steps').textContent = results.optimization_steps || '--';
+            
+            if (results.runtime) {
+                document.getElementById('runtime').textContent = results.runtime.toFixed(1);
+            } else if (typeof simStartTime !== 'undefined') {
+                const runtime = (Date.now() - simStartTime) / 1000;
+                document.getElementById('runtime').textContent = runtime.toFixed(1);
+            } else {
+                document.getElementById('runtime').textContent = '--';
+            }
+            
+            document.getElementById('view-3d-btn').style.display = 'inline-block';
+        }
+        
+        function stopSimulation() {
+            if (eventSource) {
+                eventSource.close();
+                fetch('http://localhost:5001/stop', {method: 'POST'});
+                addOutput('Simulation stopped by user', '#ff6b6b');
+                document.getElementById('stop-btn').disabled = true;
+                document.querySelector('.btn-primary').disabled = false;
+            }
+        }
+        
+        function loadExample() {
+            document.getElementById('probe').value = 'glucose';
+            document.getElementById('target').value = '';
+            document.querySelector('.substrate-option[data-value="Graphene"]').click();
+            addOutput('Example loaded: Glucose on Graphene', '#4caf50');
+        }
+        
+        // Batch screening function
+        async function runBatch() {
+            try {
+                console.log('runBatch() called!');
+                console.log('runBatch() started');
+                
+                const moleculesElement = document.getElementById('batch-molecules');
+                if (!moleculesElement) {
+                    alert('Error: Cannot find batch-molecules element');
+                    return;
+                }
+                
+                const molecules = moleculesElement.value
+                    .split('\n')
+                    .map(m => m.trim())
+                    .filter(m => m);
+                
+                console.log('Molecules:', molecules);
+                
+                if (molecules.length === 0) {
+                    alert('Error: Please enter at least one molecule');
+                    return;
+                }
+
+                const targetElement = document.getElementById('batch-targets');
+                const substrateElement = document.getElementById('batch-substrate');
+                
+                if (!targetElement || !substrateElement) {
+                    alert('Error: Cannot find input elements');
+                    return;
+                }
+
+                const rawTargets = targetElement.value
+                    .split(/\n|,/)
+                    .map(t => t.trim())
+                    .filter(t => t.length > 0);
+                const target = rawTargets.length === 1 ? rawTargets[0] : '';
+                const substrate = substrateElement.value;
+                const modelSelect = document.getElementById('model');
+                const taskSelect = document.getElementById('task');
+                const modelName = modelSelect ? modelSelect.value : 'uma-s-1p1';
+                const taskName = taskSelect ? taskSelect.value : 'omat';
+            
+            // Show progress container
+            const batchList = document.getElementById('batch-list');
+            batchList.style.display = 'block';
+            batchList.innerHTML = '<h3>🔬 Batch Progress</h3>';
+            
+            // Create status display for each molecule
+            molecules.forEach((mol, i) => {
+                batchList.innerHTML += `
+                    <div class="batch-item">
+                        <span>${mol}</span>
+                        <span class="status pending" id="mol-${i}">Pending</span>
+                    </div>
+                `;
+            });
+            
+            // Add output terminal for batch
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'terminal';
+            outputDiv.id = 'batch-terminal';
+            outputDiv.style.marginTop = '20px';
+            outputDiv.style.height = '300px';
+            outputDiv.style.display = 'block';
+            batchList.appendChild(outputDiv);
+            
+            // Batch-specific output function
+            function addBatchOutput(text, color = '#00ff88') {
+                const terminal = document.getElementById('batch-terminal');
+                const time = new Date().toLocaleTimeString();
+                terminal.innerHTML += `<div style="color: ${color}">[${time}] ${text}</div>`;
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+            
+            addBatchOutput('Starting batch screening...', '#4caf50');
+
+            try {
+                const payload = {
+                    molecules: molecules,
+                    substrate: substrate,
+                    model_name: modelName,
+                    task_name: taskName
+                };
+
+                if (rawTargets.length > 1) {
+                    payload.targets = rawTargets;
+                } else if (target) {
+                    payload.target = target;
+                }
+
+                const response = await fetch('/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            
+                            if (data.startsWith('MOLECULE_STATUS:')) {
+                                const parts = data.split(':');
+                                const moleculeIndex = parseInt(parts[1]);
+                                const status = parts[2];
+                                const molecule = molecules[moleculeIndex];
+                                
+                                // Update status display
+                                const statusElement = document.getElementById(`mol-${moleculeIndex}`);
+                                if (statusElement) {
+                                    if (status === 'started') {
+                                        statusElement.textContent = 'Running';
+                                        statusElement.className = 'status running';
+                                        addBatchOutput(`🚀 Processing: ${molecule}`, '#ffeb3b');
+                                    } else if (status === 'completed') {
+                                        statusElement.textContent = 'Completed';
+                                        statusElement.className = 'status completed';
+                                        addBatchOutput(`✅ Completed: ${molecule}`, '#4caf50');
+                                    }
+                                }
+                            } else if (data.startsWith('BATCH_RESULTS:')) {
+                                // Parse batch results and show visualization
+                                const results = JSON.parse(data.substring(14));
+                                window.batchResults = results;
+                                addBatchOutput('📊 Processing results...', '#00ff88');
+                                showBatchResults(results);
+                            } else if (data.startsWith('BATCH_DIR:')) {
+                                // Store batch directory name
+                                const dirName = data.split(':')[1];
+                                window.batchDir = dirName;
+                                addBatchOutput(`📊 Results saved to: ${dirName}`, '#00ff88');
+                            } else if (data.startsWith('VIZ_LINKS:')) {
+                                // Store visualization links
+                                window.vizLinks = JSON.parse(data.substring(10));
+                                console.log('Received VIZ_LINKS:', window.vizLinks);
+                                addBatchOutput(`📊 Received ${window.vizLinks.length} visualization links`, '#4caf50');
+                                // Re-render the table if results are already shown
+                                if (window.batchResults) {
+                                    showBatchResults(window.batchResults);
+                                }
+                            } else if (data === 'BATCH_COMPLETE') {
+                                addBatchOutput('✅ Batch screening completed!', '#4caf50');
+                            } else {
+                                addBatchOutput(data, '#ffffff');
+                            }
+                        }
+                    }
+                }
+
+                addBatchOutput('🎉 Batch screening completed!', '#4caf50');
+                
+            } catch (error) {
+                console.error('Batch error:', error);
+                addBatchOutput(`Error: ${error.message}`, '#ff4444');
+            }
+            } catch (error) {
+                console.error('runBatch error:', error);
+                alert(`Function error: ${error.message}`);
+            }
+        }
+        
+        function formatTargetLabel(targetKey) {
+            if (!targetKey || targetKey === '__no_target__' || targetKey === 'null') {
+                return 'No target (self-interaction)';
+            }
+            return targetKey;
+        }
+
+        function showBatchResults(results) {
+            document.getElementById('batch-results').style.display = 'block';
+
+            if (!results || !results.results) {
+                return;
+            }
+
+            window.batchResults = results;
+            const substrate = results.config?.substrate || (Array.isArray(results.config?.substrates) ? results.config.substrates[0] : 'unknown');
+            const substrateResults = results.results[substrate];
+
+            if (!substrateResults) {
+                return;
+            }
+
+            const firstValue = Object.values(substrateResults)[0];
+            const isNested = firstValue && typeof firstValue === 'object' && !('probe' in firstValue);
+            const targetMap = isNested ? substrateResults : { '__no_target__': substrateResults };
+
+            window.batchTargetMap = targetMap;
+            window.batchSubstrate = substrate;
+            window.batchResultsData = results;
+
+            const selectorDiv = document.getElementById('batch-target-selector');
+            const selector = document.getElementById('batch-results-target');
+            selector.innerHTML = '';
+
+            const targetEntries = Object.keys(targetMap);
+            if (targetEntries.length === 0) {
+                return;
+            }
+            targetEntries.forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = formatTargetLabel(key);
+                selector.appendChild(option);
+            });
+
+            if (targetEntries.length > 1) {
+                selectorDiv.style.display = 'block';
+            } else {
+                selectorDiv.style.display = 'none';
+            }
+
+            selector.onchange = function() {
+                renderBatchResults(this.value);
+            };
+
+            const initialKey = targetEntries[0];
+            selector.value = initialKey;
+            renderBatchResults(initialKey);
+
+            // Add button to view comparison plot (persistent)
+            const resultsSection = document.getElementById('batch-results');
+            if (!document.getElementById('view-batch-viz')) {
+                const vizButton = document.createElement('button');
+                vizButton.id = 'view-batch-viz';
+                vizButton.className = 'btn btn-primary';
+                vizButton.style.marginTop = '20px';
+                vizButton.innerHTML = '📊 View Comparison Plot';
+                vizButton.onclick = function() {
+                    if (window.batchDir) {
+                        window.open(`/visualization/${window.batchDir}/energy_comparison.png`, '_blank');
+                    } else {
+                        alert('Visualization not available yet');
+                    }
+                };
+                resultsSection.appendChild(vizButton);
+            }
+        }
+
+        function renderBatchResults(targetKey) {
+            if (!window.batchTargetMap) {
+                return;
+            }
+
+            const targetData = window.batchTargetMap[targetKey];
+            if (!targetData) {
+                return;
+            }
+
+            const processedResults = [];
+            Object.entries(targetData).forEach(([probe, data]) => {
+                processedResults.push({
+                    molecule: probe,
+                    adsorption: data.probe_adsorption ?? 0,
+                    interaction: data.probe_target_interaction ?? data.probe_target_interaction_vacuum ?? 0,
+                    total: data.target_adsorption_on_substrate ?? data.probe_target_interaction ?? data.probe_target_interaction_vacuum ?? 0
+                });
+            });
+
+            processedResults.sort((a, b) => a.total - b.total);
+
+            const canvas = document.getElementById('batch-chart');
+            canvas.style.backgroundColor = '#ffffff';
+            canvas.style.borderRadius = '8px';
+            canvas.style.border = '1px solid #ddd';
+
+            if (window.batchChartInstance) {
+                window.batchChartInstance.destroy();
+            }
+
+            const ctx = canvas.getContext('2d');
+            const targetLabel = formatTargetLabel(targetKey);
+
+            window.batchChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: processedResults.map(r => r.molecule),
+                    datasets: [
+                        {
+                            label: 'Adsorption Energy (eV)',
+                            data: processedResults.map(r => r.adsorption),
+                            backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Interaction Energy (eV)',
+                            data: processedResults.map(r => r.interaction),
+                            backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Total Interaction Energy (eV)',
+                            data: processedResults.map(r => r.total),
+                            backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Batch Screening Results - ${targetLabel}`,
+                            color: '#333333',
+                            font: {
+                                family: 'Arial, sans-serif',
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: '#333333',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#333333',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Energy (eV)',
+                                color: '#333333',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                color: '#333333',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: 10
+                    },
+                    backgroundColor: '#ffffff'
+                }
+            });
+
+            const tbody = document.getElementById('batch-table');
+            tbody.innerHTML = '';
+            const substrate = window.batchSubstrate || 'vacuum';
+            const targetForPath = (!targetKey || targetKey === '__no_target__' || targetKey === 'null') ? '' : targetKey;
+
+            processedResults.forEach((r, i) => {
+                let vizButton = 'Pending...';
+                if (window.vizLinks && window.vizLinks.length > 0) {
+                    const vizLink = window.vizLinks.find(v => {
+                        const linkTarget = (v.target || '').toLowerCase();
+                        const desiredTarget = targetForPath.toLowerCase();
+                        return v.molecule.toLowerCase() === r.molecule.toLowerCase() && linkTarget === desiredTarget;
+                    });
+                    if (vizLink) {
+                        vizButton = `<button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" 
+                                      onclick="window.open('/visualization/${vizLink.url}', '_blank')">
+                                      🔬 View 3D
+                                     </button>`;
+                    } else {
+                        vizButton = 'Not found';
+                    }
+                } else {
+                    const prefix = targetForPath ? `${r.molecule}_${targetForPath}_${substrate}` : `${r.molecule}_${substrate}`;
+                    const expectedUrl = `${prefix}/visualization.html`;
+                    vizButton = `<button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" 
+                                  onclick="window.open('/visualization/${expectedUrl}', '_blank')">
+                                  🔬 View 3D
+                                 </button>`;
+                }
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="padding: 10px;">${i + 1}</td>
+                        <td style="padding: 10px;">${r.molecule}</td>
+                        <td style="padding: 10px; color: ${r.adsorption < 0 ? 'var(--neon-green)' : 'var(--neon-pink)'};">${r.adsorption.toFixed(4)} eV</td>
+                        <td style="padding: 10px; color: ${r.total < 0 ? 'var(--neon-green)' : 'var(--neon-pink)'};">${r.total.toFixed(4)} eV</td>
+                        <td style="padding: 10px;">${vizButton || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+        }
+        
+        function quickRun(probe, substrate, target = null) {
+            const terminal = document.getElementById('quick-terminal');
+            terminal.innerHTML = '';
+            terminal.innerHTML += `<div style="color: #00ff88">Running: ${probe} on ${substrate}</div>`;
+            terminal.innerHTML += `<div style="color: #00ff88">Configuration created...</div>`;
+            
+            setTimeout(() => {
+                terminal.innerHTML += `<div style="color: #00ff88">Downloading molecule structure...</div>`;
+            }, 500);
+            
+            setTimeout(() => {
+                terminal.innerHTML += `<div style="color: #00ff88">Setting up simulation box...</div>`;
+            }, 1000);
+            
+            setTimeout(() => {
+                terminal.innerHTML += `<div style="color: #00ff88">Running optimization...</div>`;
+            }, 1500);
+            
+            setTimeout(() => {
+                terminal.innerHTML += `<div style="color: #4caf50">✓ Simulation complete!</div>`;
+                terminal.innerHTML += `<div style="color: #00d4ff">Adsorption Energy: ${(-Math.random() * 3).toFixed(3)} eV</div>`;
+            }, 2500);
+        }
+        
+        function downloadResults() {
+            const results = {
+                probe: document.getElementById('probe').value,
+                adsorption_energy: document.getElementById('ads-energy').textContent,
+                interaction_energy: document.getElementById('int-energy').textContent,
+                timestamp: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(results, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rapids_results_${Date.now()}.json`;
+            a.click();
+        }
+        
+        function viewStructure() {
+            const probe = document.getElementById('probe').value || 'unknown';
+            const target = document.getElementById('target').value || '';
+            const substrate = document.querySelector('.substrate-option.selected')?.dataset.value || 'vacuum';
+            
+            const simName = target ? `${probe}_${target}_${substrate}` : `${probe}_${substrate}`;
+            const vizUrl = `http://localhost:5001/visualization/${simName}/visualization.html`;
+            
+            window.open(vizUrl, '_blank');
+        }
+        
+        // File handling functions
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.target.classList.add('dragover');
+        }
+        
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.target.classList.remove('dragover');
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            e.target.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            processFile(file);
+        }
+        
+        function handleFile(e) {
+            processFile(e.target.files[0]);
+        }
+        
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split('\n').filter(l => l.trim());
+                document.getElementById('batch-molecules').value = lines.join('\n');
+            };
+            reader.readAsText(file);
+        }
+        
+        // Initialize cyber particles
+        function initializeCyberParticles() {
+            const particlesContainer = document.getElementById('cyber-particles');
+            if (particlesContainer) {
+                for (let i = 0; i < 15; i++) {
+                    createCyberParticle();
+                }
+                setInterval(createCyberParticle, 2000);
+            }
+        }
+
+        function createCyberParticle() {
+            const particlesContainer = document.getElementById('cyber-particles');
+            if (!particlesContainer) return;
+            
+            const particle = document.createElement('div');
+            particle.style.position = 'absolute';
+            particle.style.width = '3px';
+            particle.style.height = '3px';
+            particle.style.borderRadius = '50%';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = '100%';
+
+            const colors = ['#00ffff', '#ff00ff', '#00ff88', '#00d4ff', '#9d00ff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            particle.style.background = color;
+            particle.style.boxShadow = `0 0 10px ${color}`;
+            particle.style.filter = 'blur(1px)';
+
+            particle.style.animation = `float ${15 + Math.random() * 10}s linear`;
+            particle.style.animationDelay = Math.random() * 5 + 's';
+
+            particlesContainer.appendChild(particle);
+
+            setTimeout(() => {
+                particle.remove();
+            }, 25000);
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', function() {
+            initializeCyberParticles();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "probe": "beta-CD",
+  "target": "PFOS",
+  "substrate": "vacuum",
+  "box_size": [40, 40, 40],
+  "probe_target_distance": 3.0,
+  "probe_orientation": {"align": "standing"},
+  "target_position": {"x": 0.5, "y": 0.5, "z": 20.0}
+}

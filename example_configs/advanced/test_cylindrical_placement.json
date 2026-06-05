@@ -1,0 +1,6 @@
+{
+  "probe": "PFDoDA",
+  "substrate": "Ni_HHTP",
+  "probe_position": {"cylindrical": {"r": 5.0, "theta": 0, "z": 15.0}},
+  "probe_orientation": {"axis": [0, 0, 1], "angle": 90}
+}

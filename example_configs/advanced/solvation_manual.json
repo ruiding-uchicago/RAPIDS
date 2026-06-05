@@ -1,0 +1,12 @@
+{
+  "run_name": "caffeine_solvated_20water",
+  "probe": "caffeine",
+  "substrate": "vacuum",
+
+  "solvation": {
+    "solvent": "water",
+    "count": 20
+  },
+
+  "comment": "Manual solvation: specify exact number of water molecules"
+}

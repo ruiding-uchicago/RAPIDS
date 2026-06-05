@@ -1,0 +1,12 @@
+{
+  "probes": ["aspirin", "ibuprofen", "acetaminophen", "naproxen"],
+  "target": "cyclodextrin",
+  "substrate": "vacuum",
+  "comparison_name": "drug_encapsulation_study",
+  "task_name": "omat",
+  "box_size": "auto",
+  "probe_target_distance": 5.0,
+  "fmax": 0.03,
+  "max_steps": 150,
+  "max_continuations": 4
+}

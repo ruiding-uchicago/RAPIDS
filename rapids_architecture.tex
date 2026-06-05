@@ -1,0 +1,546 @@
+% RAPIDS Architecture — paper-ready section
+% Compile with pdflatex/xelatex; requires booktabs, hyperref, siunitx,
+% listings, tikz (arrows.meta + positioning), algorithm, algpseudocode.
+
+\section{RAPIDS Architecture}
+\label{sec:rapids-arch}
+
+\subsection{Purpose and Scope}
+
+RAPIDS (\textit{Rapid Atomistic Probe-target Interaction Discovery Scaffold};
+core package v\,1.8.0, bundled MCP server v\,1.10.0)
+is a machine-learning-accelerated toolkit
+for qualitative dry-lab simulation of probe--target--substrate molecular
+interactions. The pipeline wraps the FAIRChem Universal Materials
+Atomistic (UMA) interatomic potential with automated molecule retrieval,
+structure generation, geometry optimization, multi-tier validation and
+implicit solvation, exposing both a command-line interface and a
+Model Context Protocol (MCP) server for agentic workflows.
+Figure~\ref{fig:rapids-pipeline} summarizes the end-to-end flow.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=5mm and 8mm,
+  stage/.style={rectangle, rounded corners=2pt, draw=black!70,
+                fill=blue!8, align=center, minimum width=34mm,
+                minimum height=9mm, inner sep=3pt},
+  guard/.style={rectangle, rounded corners=2pt, draw=black!70,
+                fill=orange!15, align=center, minimum width=34mm,
+                minimum height=9mm, inner sep=3pt},
+  output/.style={rectangle, rounded corners=2pt, draw=black!70,
+                 fill=green!12, align=center, minimum width=34mm,
+                 minimum height=9mm, inner sep=3pt},
+  tier/.style={rectangle, rounded corners=2pt, draw=black!70,
+               fill=purple!10, align=center, minimum width=38mm,
+               minimum height=10mm, inner sep=3pt},
+  trig/.style={font=\scriptsize\ttfamily, align=left, text=black!65,
+               inner sep=1pt},
+  arr/.style={-{Latex[length=2mm]}, thick, black!70},
+  arrU/.style={-{Latex[length=2mm]}, thick, purple!70, dashed},
+  panel/.style={font=\bfseries\small},
+]
+  %% =============== Panel (a): Pipeline ===============
+  \begin{scope}[local bounding box=panelA]
+    \node[stage] (input) {User config\\\scriptsize{probe, target, substrate}};
+    \node[stage, below=of input] (mol)
+      {Molecule retrieval\\\scriptsize{cache $\to$ rare\_mol $\to$ PubChem}};
+    \node[stage, below=of mol] (build)
+      {Structure builder\\\scriptsize{position, orientation, box}};
+    \node[stage, below=of build] (opt)
+      {LBFGS + UMA optimize\\\scriptsize{turbo cache, smart continuation}};
+    \node[stage, below=of opt] (scan)
+      {Tiered orientation scan\\\scriptsize{see panel (b)}};
+
+    \node[guard, right=14mm of opt] (guards)
+      {Per-config guards\\\scriptsize{topology / geometry / energy / conv.}};
+    \node[guard, right=14mm of scan] (ecg)
+      {ECG aggregation\\\scriptsize{min vs.\ median vs.\ review}};
+    \node[guard, below=of ecg] (xtb)
+      {xTB solvation\\\scriptsize{$\Delta G_{\text{solv}}$ on $P,T,PT$}};
+    \node[output, below=of xtb] (out)
+      {Results + JSON\\\scriptsize{energies, confidence, report}};
+
+    \draw[arr] (input) -- (mol);
+    \draw[arr] (mol)   -- (build);
+    \draw[arr] (build) -- (opt);
+    \draw[arr] (opt)   -- (scan);
+    \draw[arr] (opt.east)  to[out=0,in=180]  (guards.west);
+    \draw[arr] (scan.east) to[out=0,in=180]  (ecg.west);
+    \draw[arr] (guards.south) to[out=-90,in=90] (ecg.north);
+    \draw[arr] (ecg)   -- (xtb);
+    \draw[arr] (xtb)   -- (out);
+  \end{scope}
+
+  %% =============== Panel (b): Tier ladder ===============
+  \begin{scope}[local bounding box=panelB, shift={(88mm,-12mm)}]
+    \node[tier, fill=purple!8]  (t1)
+      {\textbf{Tier~1 -- Grid}\\\scriptsize $3$ anchors $\times$ $3$ rot $=9$ opts};
+    \node[tier, fill=purple!14, below=12mm of t1] (t2)
+      {\textbf{Tier~2 -- Basin Hopping}\\\scriptsize $+6$ perturbed opts};
+    \node[tier, fill=purple!20, below=12mm of t2] (t3)
+      {\textbf{Tier~3 -- Random Refine}\\\scriptsize $+9$ samples near best};
+
+    \draw[arrU] (t1) -- (t2);
+    \draw[arrU] (t2) -- (t3);
+
+    % Trigger labels on arrows
+    \node[trig, right=1mm of $(t1.south east)!0.5!(t2.north east)$,
+          anchor=west]
+      {\textbf{upgrade if:}\\
+       $\sigma_E > 0.3$ eV\\
+       $|\Delta E_{1,2}|<0.02$ eV\\
+       valid rate $<80\%$\\
+       $N_{\text{atoms}}>50$};
+    \node[trig, right=1mm of $(t2.south east)!0.5!(t3.north east)$,
+          anchor=west]
+      {\textbf{upgrade if:}\\
+       BH $<$ grid-best $-\,0.1$ eV};
+  \end{scope}
+
+  %% Panel labels
+  \node[panel, above=1mm of panelA.north] {(a) Pipeline};
+  \node[panel, above=1mm of panelB.north] {(b) Tier ladder};
+\end{tikzpicture}
+\caption{Core RAPIDS pipeline. (a) Blue stages run sequentially; each
+optimized configuration is passed through the per-config guards
+(topology, geometry, energy, convergence), and the full set is then
+aggregated by the Energy Consistency Guard (ECG). xTB implicit
+solvation is computed on the three optimized vacuum structures
+($P$, $T$, $PT$) and combined into a solution-phase binding energy
+whenever the substrate is vacuum. Confidence-annotated results are
+written as JSON together with the optimized geometries.
+(b) Tiered orientation scan: Tier~1 runs unconditionally; Tier~2 and
+Tier~3 are entered only when their trigger conditions fire (dashed
+arrows) or when \texttt{min\_tier} is raised by the caller.
+Already-computed configurations are skipped via smart-incremental
+caching.}
+\label{fig:rapids-pipeline}
+\end{figure}
+
+\subsection{Module Organization}
+
+\begin{table}[h]
+\centering
+\caption{Top-level Python modules and their responsibilities.}
+\label{tab:modules}
+\small
+\begin{tabular}{@{}lp{0.62\linewidth}@{}}
+\toprule
+\textbf{Module} & \textbf{Role} \\
+\midrule
+\texttt{simulation\_builder.py} & Loads molecules (PubChem, rare\_molecules, local cache); builds probe, target, substrate and solvated systems; parses positions (Cartesian, fractional, cylindrical, relative-to-probe) and orientations (Euler, axis--angle, quaternion, presets); writes VASP and XYZ. \\
+\texttt{molecule\_downloader.py} & PubChem REST and PubChemPy with RDKit ETKDG fallback for 2D$\rightarrow$3D conversion. Checks the curated \texttt{rare\_molecules/} library before downloading. \\
+\texttt{smart\_fairchem\_flow.py} & Orchestrates build $\rightarrow$ optimize $\rightarrow$ interaction analysis $\rightarrow$ xTB solvation. LBFGS with smart continuation and a per-composition turbo calculator cache. \\
+\texttt{batch\_comparison.py} & Cartesian product over probes $\times$ substrates $\times$ targets; ranking and \texttt{matplotlib} energy plots. \\
+\texttt{batch\_opt.py} & Stand-alone geometry optimizer over \texttt{.vasp} files with optional cell relaxation (\texttt{--relax-cell --iso-2d} for 2D materials). \\
+\texttt{mcp\_server.py} & MCP server exposing 14 tools (workspace control, build, optimize, scan\_orientations, batch\_screening, analysis); GPU process pool, tiered sampling, validation guardrails. \\
+\texttt{topology\_validator.py} & Topology, geometry and energy guards; multi-task ML consensus; energy-consistency analysis. \\
+\texttt{web\_server.py}, \texttt{web\_gui.html} & Flask backend with Server-Sent Events streaming and a single-file 3D-mol.js front end. \\
+\texttt{visualize\_structures.py} & Generates standalone HTML viewers with energy annotation. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Shared Resources and Workspace Isolation}
+
+The package directory provides read-only shared resources: nine
+pre-built substrate slabs ({BP}, {Co\_HHTP}, {Cu\_HHTP}, {Graphene},
+{MoS\textsubscript{2}}, {Ni\_HHTP}, {Pt111}, {Si}, {ZnO}) supplied as
+\texttt{CONTCAR} files; a curated \texttt{rare\_molecules/} library
+(\textit{e.g.}\ $\beta$-cyclodextrin, calixarenes, carbon nanotube,
+pillar[5]arene); and a \texttt{molecules/} cache of roughly 845
+PubChem-derived structures. Since v\,1.7.0 every MCP agent must call
+\texttt{set\_workspace(path)} prior to running simulations: results and
+new molecule downloads are written to the workspace, while substrates
+and rare molecules are read from the package. A
+\texttt{resolve\_workspace(args)} helper accepts an explicit
+\texttt{workspace} parameter to enable parallel-safe operation.
+
+\subsection{Energy Definitions}
+\label{sec:energy-defs}
+
+All energies are reported in \si{\eV}; the conversion
+\SI{1}{\eV}~$\equiv$~\SI{23.061}{\kcal\per\mol} is used throughout.
+Negative values indicate exothermic processes.
+
+\begin{align}
+E_{\mathrm{ads}}^{\mathrm{probe}} &= E_{\mathrm{p+s}} - E_{\mathrm{p}} - E_{\mathrm{s}}, \\
+E_{\mathrm{int}}^{\mathrm{vac}} &= E_{\mathrm{p+t,\,vac}} - E_{\mathrm{p}} - E_{\mathrm{t}}, \\
+E_{\mathrm{int}}^{\mathrm{three}} &= E_{\mathrm{p+t+s}} - E_{\mathrm{p}} - E_{\mathrm{t}} - E_{\mathrm{s}}, \\
+E_{\mathrm{ads}}^{\mathrm{t\to ps}} &= E_{\mathrm{p+t+s}} - E_{\mathrm{p+s}} - E_{\mathrm{t}}, \\
+\Delta E_{\mathrm{sub}} &= E_{\mathrm{ads}}^{\mathrm{t\to ps}} - E_{\mathrm{int}}^{\mathrm{vac}}, \\
+\Delta G_{\mathrm{sol}} &= E_{\mathrm{int}}^{\mathrm{vac}} + \Delta G_{\mathrm{solv}},
+\end{align}
+
+where $\Delta G_{\mathrm{solv}}$ is obtained from a single-point GFN2-xTB
+calculation with the ALPB implicit-water model evaluated on each
+optimized vacuum geometry (probe, target, complex).
+
+\subsection{UMA Task Heads and Domain Caveats}
+\label{sec:tasks}
+
+The UMA model exposes three task heads:
+
+\begin{itemize}
+\item \texttt{omol} (default) --- trained at the
+  $\omega$B97M-V/def2-TZVPD level with VV10 dispersion. Quantitatively
+  reliable for vacuum molecule--molecule interactions; \emph{unreliable}
+  for substrate adsorption, where it has been observed to return
+  \SIrange{-20}{-30}{\eV} in cases whose reference adsorption is
+  $\sim\!\SI{-0.5}{\eV}$ ($\sim 50\times$ overestimate).
+\item \texttt{oc20} --- RPBE-trained for catalysis surfaces. Provides
+  reasonable adsorption magnitudes but can yield wrong signs;
+  appropriate only for relative ranking.
+\item \texttt{omat} --- PBE/PBE+U for bulk inorganic materials.
+\end{itemize}
+
+For charged systems ($q \neq 0$), only \texttt{omol} is supported;
+\texttt{oc20} and \texttt{omat} are removed from the fallback set.
+Whenever \texttt{substrate} differs from \texttt{vacuum}, results are
+flagged with \texttt{rank\_only=True} because the UMA training data
+contains essentially no 2D-material adsorption examples.
+
+\subsection{Tiered Orientation Scanning}
+\label{sec:scan}
+
+The \texttt{scan\_orientations} MCP tool implements a three-tier
+sampling strategy with automatic upgrades:
+
+\begin{enumerate}
+\item \textbf{Tier~1 -- Grid.} $n_{\text{anchors}} \times
+  n_{\text{orientations}}$ configurations (default $3 \times 3 = 9$).
+  Each anchor is a lateral offset $4(f_a - \tfrac12)$~\AA\ applied to
+  the probe, with $f_a \in \{0.25,\,0.5,\,0.75\}$; the orientation set
+  is $\Theta=\{0^\circ,\,120^\circ,\,240^\circ\}$ around the chosen
+  \texttt{rotation\_axis} (default \texttt{x}).
+\item \textbf{Tier~2 -- Basin Hopping.} Six perturbations of the
+  best Tier~1 configuration: three independent Euler offsets drawn
+  from $U[-45^\circ,\,45^\circ]$, a lateral translation from
+  $U[-1.5,\,1.5]$~\AA\ and a vertical translation from
+  $U[-0.5,\,0.5]$~\AA. Note that \texttt{\_generate\_bh\_configs}
+  hard-codes the base Euler vector along the $x$-axis, so the
+  \texttt{rotation\_axis} choice from Tier~1 is not carried over.
+\item \textbf{Tier~3 -- Random Refinement.} Nine additional samples
+  drawn near the running best, each with an extra $\pm1.0$~\AA\ kick
+  on the anchor offset on top of the Tier~2--style Euler and
+  translation perturbations.
+\end{enumerate}
+
+Upgrades are triggered automatically. Tier~$1{\to}2$ fires if
+\emph{any} of:
+\textsc{High\_Variance} ($\sigma_{E} > \SI{0.3}{\eV}$),
+\textsc{Top2\_Close} ($|\Delta E_{1,2}| < \SI{0.02}{\eV}$),
+\textsc{Low\_Valid\_Rate} (eligible fraction $< 80\%$), or
+\textsc{Large\_System} ($N_{\text{atoms}} > 50$), or whenever
+\texttt{min\_tier}$\,\ge 2$. Tier~$2{\to}3$ fires on
+\textsc{BH\_Found\_Better} (Tier~2 improves the Tier~1 minimum by
+$> \SI{0.1}{\eV}$) or whenever \texttt{min\_tier}$\,\ge 3$; when
+triggered with no user-supplied \texttt{random\_samples}, the
+refinement budget defaults to nine. If the Tier~1 eligible set is
+empty, no upgrade is attempted. A \emph{smart-incremental} cache
+keyed on the sub-run name skips re-computation of any already
+evaluated configuration.
+
+\subsection{Validation Guardrails}
+\label{sec:guards}
+
+After each optimization the pipeline runs four independent guards:
+
+\begin{description}
+\item[Topology guard.] Constructs covalent bond graphs for the initial
+  and final structures using \texttt{ase.neighborlist} with element-pair
+  thresholds (\textit{e.g.}\ \SI{1.80}{\angstrom} for C--F). Bonds whose
+  length changes by less than~$15\%$ are treated as noise. Any
+  intramolecular change triggers a multi-task consensus pass: the same
+  geometry is re-optimized with the remaining UMA heads and a majority
+  vote determines the verdict (1/3 broken~$\to$ confidence
+  \texttt{medium}; 2/3~$\to$ \texttt{low}; 3/3~$\to$ DFT recommended).
+\item[Geometry guard.] Flags non-bonded contacts violating
+  $d_{ij} < r_{i}^{\text{vdW}} + r_{j}^{\text{vdW}} -
+  \SI{0.4}{\angstrom}$ (MolProbity ``severe clash'' criterion) and
+  intramolecular bonds strained by 15--$30\%$.
+\item[Energy guard.] Two independent thresholds anchored to
+  experimentally well-characterized extremes:
+  $|E_{\text{bind}}|/N_{\text{small}} > \SI{0.65}{\eV\per atom}$
+  (the upper end of the 3c-4e [FHF]$^{-}$ bifluoride per-atom range
+  of \SIrange{0.55}{0.66}{\eV\per atom}) and
+  $|E_{\text{bind}}| > \SI{2.2}{\eV}$ (a generous upper bound set
+  roughly at twice the cucurbit[7]uril
+  $K_{a} \sim 10^{15}\textrm{--}10^{16}\,\text{M}^{-1}$ binding free
+  energy of $\sim\!\SI{0.95}{\eV}$). A finer-grained
+  \texttt{validate\_energy\_enhanced} variant
+  (\texttt{normal}/\texttt{suspicious}/\texttt{extreme}/\texttt{non\_physical}
+  at secondary thresholds \SI{3}{\eV} and \SI{10}{\eV}) is defined
+  in the module but is not currently wired into the active worker
+  path; per-configuration decisions are made with the two-threshold
+  rule above.
+\item[Energy Consistency Guard (ECG).] Evaluated across an entire
+  scan (invoked only from the MCP \texttt{scan\_orientations} path,
+  not from a standalone \texttt{smart\_fairchem\_flow} run). The guard
+  first tests geometric similarity
+  ($\Delta\mathrm{COM} \le \SI{1.5}{\angstrom}$ and
+  $\Delta d_{\min} \le \SI{0.5}{\angstrom}$, when available). Status
+  \texttt{unstable} fires if the eligible energy spread exceeds
+  \SI{3}{\eV} with similar geometries \emph{or} if the minimum lies
+  below the IQR lower fence ($Q_1 - 3\,\mathrm{IQR}$); status
+  \texttt{extreme\_instability} requires a spread beyond \SI{10}{\eV}
+  \emph{with} similar geometries. The guard reports a
+  \texttt{selection\_mode}: \texttt{minimum}, \texttt{median}, or
+  \texttt{manual\_review} (with a DFT recommendation).
+\end{description}
+
+A convergence guard further downgrades confidence, but is only
+applied when the topology guard succeeded: a smart-continuation
+sequence that aborted with $\|F\|_\infty > \SI{0.5}{\eV/\angstrom}$ is
+labelled \texttt{diverged} (confidence $\to$ \texttt{low}), and one
+that exited via the outer step budget is \texttt{limit\_reached}
+(capped at \texttt{medium}). Within a single LBFGS cycle, smart
+continuation has three branches: $\|F\|_\infty \le 2 f_{\max}$
+continues, $\|F\|_\infty > \SI{0.5}{\eV/\angstrom}$ aborts as
+diverged, and the intermediate range also continues (up to the
+continuation budget $k$). Eligible-for-ranking configurations are
+those with confidence \texttt{high} or \texttt{medium}.
+
+\subsection{Algorithmic Summary}
+\label{sec:algorithms}
+
+Algorithms~\ref{alg:rapids}--\ref{alg:validate} describe the MCP
+\texttt{scan\_orientations} entry point of RAPIDS, which is the full
+guarded screening flow. The standalone CLI
+(\texttt{smart\_fairchem\_flow.py}) performs only molecule retrieval,
+structure building, LBFGS optimization, interaction-energy reporting
+and xTB solvation --- it does not invoke the topology / geometry /
+energy / convergence / multi-task / ECG guards. Those guardrails run
+inside \texttt{\_run\_flow\_worker} in the MCP server.
+Algorithm~\ref{alg:rapids} is the top-level MCP driver. Its
+distinctive step is the adaptive tiered scan of
+Algorithm~\ref{alg:tierscan}, which only enters Tier~2 (basin hopping)
+and Tier~3 (random refinement) when quantitative trigger conditions
+fire on the Tier~1 results (or when \texttt{min\_tier} is raised by
+the caller). Algorithm~\ref{alg:validate} specifies the
+optimize-and-validate routine the worker runs for every configuration;
+it combines LBFGS with smart continuation, multi-task ML consensus
+for topology breaks, and the four per-configuration guardrails of
+Sec.~\ref{sec:guards}.
+
+\newcommand{\RapidsComment}[1]{\hfill\textcolor{black!55}{\scriptsize\textit{#1}}}
+
+\begin{algorithm}[t]
+\caption{\textsc{Rapids} --- MCP \texttt{scan\_orientations} driver}
+\label{alg:rapids}
+\begin{algorithmic}[1]
+\Require probe $P$, target $T$, substrate $S$ (or $\emptyset$), task
+         $\tau \in \{\texttt{omol}, \texttt{oc20}, \texttt{omat}\}$,
+         charge $q$, spin multiplicity $s$
+\Require opt.\ parameters $f_{\max}{=}0.05$~eV/\AA, $n_{\max}{=}100$,
+         LBFGS continuations $k{=}3$, scan budget bounds
+         \texttt{min\_tier}, \texttt{max\_tier}, \texttt{random\_samples}
+\Ensure  ranked result set $\mathcal{R}$ plus a scan summary containing
+         the recommended binding energy $E^{\star}$ and
+         \texttt{selection\_mode}; vacuum runs additionally attach a
+         solution-phase binding energy $\Delta G_{\mathrm{sol}}$
+\Statex
+\State $\mathcal{M}_P \gets \Call{Retrieve}{P}$;\quad
+       $\mathcal{M}_T \gets \Call{Retrieve}{T}$
+       \RapidsComment{cache $\to$ rare\_mol $\to$ PubChem}
+\State $\mathcal{M}_S \gets \textsc{LoadContcar}(S)$ \textbf{if} $S{\neq}\emptyset$
+\State $\mathcal{C}_0 \gets \Call{BuildStructures}{\mathcal{M}_P,\mathcal{M}_T,\mathcal{M}_S}$
+       \RapidsComment{positions, orientations, box}
+\Statex
+\State $\mathcal{R} \gets \Call{TieredScan}{\mathcal{C}_0,\tau,q,s}$
+       \RapidsComment{Alg.~\ref{alg:tierscan}; each config invokes Alg.~\ref{alg:validate}}
+\Statex
+\State $\mathcal{R}_{\textsc{e}} \gets \{\, r \in \mathcal{R} : c(r) \in \{\texttt{high},\texttt{medium}\}\,\}$
+\State $\textsc{ecg} \gets \Call{EnergyConsistency}{\mathcal{R}_{\textsc{e}}}$
+       \RapidsComment{IQR outliers + geometry-similarity check}
+\If{$\textsc{ecg}.\text{mode} = \texttt{minimum}$} \Comment{stable}
+    \State $r^{\star} \gets \arg\min_{r \in \mathcal{R}_{\textsc{e}}} E(r)$;\quad $E^{\star} \gets E(r^{\star})$
+\ElsIf{$\textsc{ecg}.\text{mode} = \texttt{median}$} \Comment{unstable}
+    \State $E^{\star} \gets \mathrm{median}\{E(r) : r \in \mathcal{R}_{\textsc{e}}\}$;\
+           extreme outliers flagged in $\mathcal{R}$
+\Else \Comment{\texttt{manual\_review} -- extreme instability}
+    \State annotate scan with \texttt{dft\_recommended};\
+           report both $E_{\min}$ and $E_{\mathrm{median}}$
+\EndIf
+\Statex
+\If{$S = \emptyset$} \Comment{vacuum mode triggers xTB solvation}
+    \For{$X \in \{P,\ T,\ PT\}$ using optimized vacuum geometry}
+        \State $G^{\mathrm{gas}}_{X} \gets E_{\textsc{xTB}}(X;\,\text{GFN2})$
+        \State $G^{\mathrm{aq}}_{X}  \gets E_{\textsc{xTB}}(X;\,\text{GFN2+ALPB(water)})$
+        \State $G^{\mathrm{solv}}_{X} \gets G^{\mathrm{aq}}_{X} - G^{\mathrm{gas}}_{X}$
+    \EndFor
+    \State $\Delta G_{\mathrm{solv}} \gets G^{\mathrm{solv}}_{PT}-G^{\mathrm{solv}}_{P}-G^{\mathrm{solv}}_{T}$
+           \RapidsComment{desolvation penalty}
+    \State $\Delta G_{\mathrm{sol}} \gets E_{\mathrm{int}}^{\mathrm{vac}} + \Delta G_{\mathrm{solv}}$
+           \RapidsComment{eq.~(6); attached to the scan summary}
+\EndIf
+\Statex
+\State \Return $(\mathcal{R},\ E^{\star},\ \textsc{ecg},\ \Delta G_{\mathrm{sol}}\ \text{if vacuum})$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[t]
+\caption{\textsc{TieredScan} --- grid $\to$ basin hopping $\to$ random refine}
+\label{alg:tierscan}
+\begin{algorithmic}[1]
+\Require base config $\mathcal{C}_0$, task $\tau$, charge $q$, spin $s$;
+         bounds \texttt{min\_tier}$\in\{1,2,3\}$,
+         \texttt{max\_tier}$\in\{1,2,3\}$,
+         \texttt{random\_samples}$\in\mathbb{N}_0$
+\Ensure  result set $\mathcal{R}$ (every entry annotated with
+         confidence $c(r)$ by Alg.~\ref{alg:validate})
+\Statex
+\State $\mathcal{R} \gets \emptyset$;\
+       let $n_a{=}n_o{=}3$ with axis $\alpha \gets$ \texttt{rotation\_axis} (default \texttt{x})
+\Statex
+\State \textbf{Tier 1 (Grid):} \Comment{always runs}
+\State $\mathcal{A} \gets \{f_a = \tfrac14+\tfrac{i}{2(n_a-1)} : 0 \le i < n_a\} = \{\tfrac14,\tfrac12,\tfrac34\}$
+\State for each $f_a$: lateral offset $\Delta x_a \gets 4(f_a-\tfrac12)$\,\AA\
+       along the probe COM
+       \RapidsComment{not a principal-axis coordinate; a lateral kick}
+\State $\Theta \gets \Call{linspace}{0^\circ,\,360^\circ - \tfrac{360^\circ}{n_o},\,n_o} = \{0^\circ,120^\circ,240^\circ\}$
+       around $\alpha$
+\ForAll{$(f_a,\theta) \in \mathcal{A}\times\Theta$} \Comment{$3{\times}3{=}9$ configs}
+    \State $\mathcal{C} \gets \textsc{Place}(\mathcal{C}_0,\Delta x_a,\theta,\alpha)$
+    \State $\mathcal{R} \gets \mathcal{R} \cup \{\Call{OptimizeAndValidate}{\mathcal{C},\tau,q,s}\}$
+\EndFor
+\Statex
+\State $\mathcal{E}_1 \gets \{E(r) : r\in\mathcal{R},\, c(r)\in\{\texttt{high},\texttt{medium}\}\}$
+\If{$\mathcal{E}_1 = \emptyset$} \Return $\mathcal{R}$
+       \RapidsComment{no eligible result blocks any upgrade}
+\EndIf
+\State $E^{(1)}_{\min}, E^{(1)}_{2} \gets$ smallest two of $\mathcal{E}_1$;\
+       $\rho_{\text{valid}} \gets |\mathcal{E}_1|/|\mathcal{R}|$;\ $N \gets |\mathcal{C}_0|$
+\Statex
+\State $\textsc{Up}_{1\to 2} \gets
+        \big[\sigma(\mathcal{E}_1)>0.3\text{ eV}\big] \lor
+        \big[E^{(1)}_{2}-E^{(1)}_{\min}<0.02\text{ eV}\big]$
+\Statex\hspace{2.9em}$\lor\ \big[\rho_{\text{valid}}<0.8\big] \lor \big[N>50\big]$
+       \RapidsComment{HIGH\_VAR / TOP2 / LOW\_VALID / LARGE}
+\Statex
+\If{(\textsc{Up}$_{1\to 2}$ \textbf{or} \texttt{min\_tier}$\ge 2$) \textbf{and} \texttt{max\_tier}$\ge 2$}
+    \State \textbf{Tier 2 (Basin Hopping):}
+    \State $r_{\text{best}} \gets \arg\min_{r \in \mathcal{R}} E(r)$;\
+           $\theta_0 \gets (\text{best Tier-1 angle},\ 0,\ 0)$
+           \RapidsComment{base Euler hardcoded on $x$-axis}
+    \For{$i = 1$ \textbf{to} $6$}
+        \State draw $\bm{\Delta\theta} \sim U[{-}45^\circ,{+}45^\circ]^3$
+               \RapidsComment{three independent Euler offsets}
+        \State draw $\Delta x \sim U[{-}1.5,{+}1.5]$\,\AA,\
+                   $\Delta z \sim U[{-}0.5,{+}0.5]$\,\AA
+        \State $\mathcal{C}_i \gets$ config with Euler $\theta_0 + \bm{\Delta\theta}$ and
+               \texttt{relative\_to}=\texttt{target} offset $(\Delta x,\,\Delta z)$
+        \State $\mathcal{R} \gets \mathcal{R} \cup \{\Call{OptimizeAndValidate}{\mathcal{C}_i,\tau,q,s}\}$
+    \EndFor
+    \State $E^{(2)}_{\min} \gets \min\{E(r) : r \text{ from Tier 2},\, c(r) \in \{\texttt{high},\texttt{medium}\}\}$
+    \Statex
+    \State $\textsc{Up}_{2\to 3} \gets \big[E^{(2)}_{\min} < E^{(1)}_{\min} - 0.1\text{ eV}\big]$
+           \RapidsComment{BH\_FOUND\_BETTER}
+    \If{(\textsc{Up}$_{2\to 3}$ \textbf{or} \texttt{min\_tier}$\ge 3$) \textbf{and} \texttt{max\_tier}$\ge 3$}
+        \State \textbf{Tier 3 (Random Refine):}
+        \State $n_r \gets$ \texttt{random\_samples} \textbf{if} user-supplied \textbf{else} $9$
+               \RapidsComment{default override only when \texttt{random\_samples}$=0$}
+        \State $r_{\star} \gets \arg\min_{r \in \mathcal{R}} E(r)$
+        \For{$i = 1$ \textbf{to} $n_r$}
+            \State draw $\bm{\Delta\theta} \sim U[{-}30^\circ,{+}30^\circ]^3$
+            \State draw an additional $U[{-}1.0,{+}1.0]$\,\AA\ kick on the anchor offset
+            \State $\mathcal{C}_i \gets r_{\star}$ with the above perturbation applied
+            \State $\mathcal{R} \gets \mathcal{R} \cup \{\Call{OptimizeAndValidate}{\mathcal{C}_i,\tau,q,s}\}$
+        \EndFor
+    \EndIf
+\EndIf
+\Statex
+\State \Return $\mathcal{R}$ \RapidsComment{smart-incremental: cached sub-runs reused by name}
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[t]
+\caption{\textsc{OptimizeAndValidate} --- worker-side LBFGS + four guards (MCP \texttt{\_run\_flow\_worker})}
+\label{alg:validate}
+\begin{algorithmic}[1]
+\Require initial geometry $\mathcal{C}$, task $\tau$, charge $q$, spin $s$
+\Ensure  $r = (\mathcal{C}^{\star}, E, c, \mathtt{alerts})$
+\Statex
+\State $(\mathcal{C}^{\star},\text{conv}) \gets \textsc{LBFGS\_Smart}(\mathcal{C},\tau,q,s;\ f_{\max},\ n_{\max},\ k)$
+       \RapidsComment{see Sec.~\ref{sec:guards}: three-branch continuation}
+\State $\mathtt{alerts}\gets\emptyset$;\ \ $c \gets \texttt{high}$
+\Statex
+\State \textbf{Guard 1 (Topology).}
+\State $G_0 \gets \textsc{BondGraph}(\mathcal{C})$;\ \ $G_1 \gets \textsc{BondGraph}(\mathcal{C}^{\star})$
+\State filter bond changes with $|\Delta d|/d_{\text{ref}} < 15\%$
+       \RapidsComment{noise}
+\State $\text{preserved} \gets (G_0 \triangle G_1)$ has no intramolecular edge
+\If{\textbf{not} $\text{preserved}$}
+    \State $\mathcal{T}_{\text{fb}} \gets \textsc{FallbackTasks}(\tau)$
+           \RapidsComment{$\tau{=}$omol, $q{\neq}0$: $\mathcal{T}_{\text{fb}}=\emptyset$}
+    \State re-optimize with each $\tau' \in \mathcal{T}_{\text{fb}}$;\
+           $n_b \gets 1 + $ \# fallbacks that also break
+    \State $n_\mathrm{tot} \gets 1 + |\mathcal{T}_{\text{fb}}|$
+    \If{$n_b = 1$} \Comment{artifact: primary broke, all fallbacks intact}
+        \State $c \gets \texttt{medium}$;\ adopt first intact fallback as $\mathcal{C}^{\star}$
+    \ElsIf{$1 < n_b < n_\mathrm{tot}$}
+        \State $c \gets \texttt{low}$ \Comment{majority broken}
+    \Else \Comment{all tasks broken or no fallback available}
+        \State $c \gets \texttt{low}$;\
+               $\mathtt{alerts}\mathrel{+}=\texttt{DFT\_recommended}$
+    \EndIf
+    \State \Return $(\mathcal{C}^{\star}, E(\mathcal{C}^{\star}), c, \mathtt{alerts})$
+           \RapidsComment{Guards 2--4 skipped in the broken-topology branch}
+\EndIf
+\Statex
+\State \textbf{Guards 2--4 run only when topology is preserved.}
+\Statex
+\State \textbf{Guard 2 (Geometry).}
+\If{$\exists\,(i,j)\notin G_1 : d_{ij} < r_i^{\text{vdW}}{+}r_j^{\text{vdW}}-0.4$\,\AA}
+       \State $\mathtt{alerts}\mathrel{+}=\texttt{clash}$
+\EndIf
+\Statex
+\State \textbf{Guard 3 (Energy).}
+\State $E \gets E(\mathcal{C}^{\star})$;\ \ $N_s \gets \min(|P|,|T|)$
+\State $\text{energy\_ok} \gets (|E|/N_s \le 0.65~\text{eV/atom})\ \textbf{and}\ (|E| \le 2.2~\text{eV})$
+\If{\textbf{not} $\text{energy\_ok}$}
+    $\mathtt{alerts}\mathrel{+}=\texttt{non\_physical}$
+\EndIf
+\Statex
+\State \textbf{Confidence assignment} (order-sensitive, as coded):
+\If{$\text{conv.status} = \texttt{diverged}$} $c \gets \texttt{low}$
+\ElsIf{$\text{conv.status} = \texttt{limit\_reached}$ \textbf{and} $c=\texttt{high}$} $c \gets \texttt{medium}$
+\EndIf
+\If{$\exists$ clash \textbf{and} $c=\texttt{high}$} $c \gets \texttt{medium}$ \EndIf
+\If{\textbf{not} $\text{energy\_ok}$} $c \gets \texttt{low}$
+       \RapidsComment{non-physical energy always dominates}
+\EndIf
+\Statex
+\State \Return $(\mathcal{C}^{\star}, E, c, \mathtt{alerts})$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Default Parameters}
+
+\begin{itemize}
+\item Convergence: $f_{\max} = \SI{0.05}{\eV/\angstrom}$,
+  \texttt{max\_steps}~$=100$ per LBFGS run with up to three
+  continuations (the MCP \texttt{optimize\_structure} wrapper raises
+  the default to $200$).
+\item Box: molecular extent plus $2 \times \SI{10}{\angstrom}$ vacuum
+  padding (\SI{15}{\angstrom} for charged systems);
+  minimum $25 \times 25 \times \SI{35}{\angstrom^{3}}$
+  ($35 \times 35 \times \SI{45}{\angstrom^{3}}$ if charged).
+\item Van der Waals contact distance from Mantina \emph{et al.}\
+  (2009).
+\item Solvation shell thickness \SI{3.0}{\angstrom} with Fibonacci-sphere
+  placement and minimum solvent--solvent separation
+  \SI{2.5}{\angstrom}.
+\end{itemize}
+
+\subsection{Output Artifacts}
+
+Each simulation directory contains the initial and optimized structures
+(\texttt{*.vasp}, \texttt{*.xyz}, \texttt{*\_optimized.vasp}), LBFGS
+trajectories (\texttt{*\_opt\_N.log}), and JSON records:
+\texttt{interactions.json}, \texttt{solvation.json},
+\texttt{convergence\_status.json}, \texttt{validation.json} and
+\texttt{scan\_summary.json}, accompanied by a human-readable
+\texttt{smart\_report.txt}.

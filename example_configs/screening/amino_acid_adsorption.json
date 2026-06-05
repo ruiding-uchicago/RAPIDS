@@ -1,0 +1,9 @@
+{
+  "probes": ["glycine", "alanine", "valine", "leucine", "phenylalanine"],
+  "substrate": "MoS2",
+  "comparison_name": "amino_acid_surface_affinity",
+  "task_name": "omat",
+  "probe_height": 3.0,
+  "fmax": 0.05,
+  "max_steps": 100
+}

@@ -1,0 +1,6 @@
+{
+  "probe": "PFHxS",
+  "substrate": "Co_HHTP",
+  "probe_position": {"frac": [0.5, 0.5, 0.4]},
+  "probe_orientation": [0, 0, 45]
+}

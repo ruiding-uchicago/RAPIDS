@@ -1,0 +1,8 @@
+{
+  "probe": "beta-CD",
+  "target": "PFOS",
+  "substrate": "Graphene",
+  "probe_height": 4.0,
+  "target_height": 8.0,
+  "probe_target_distance": 5.0
+}

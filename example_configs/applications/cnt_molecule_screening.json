@@ -1,0 +1,8 @@
+{
+  "probes": ["methane", "ethane", "propane", "butane"],
+  "target": "CNT",
+  "substrate": "vacuum",
+  "comparison_name": "alkane_cnt_interaction",
+  "probe_target_distance": 4.0,
+  "fmax": 0.03
+}

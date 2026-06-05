@@ -1,0 +1,5 @@
+{
+  "probes": ["PFHxS", "PFOS", "PFDoDA", "PFOA", "PFNA"],
+  "substrate": "Cu_HHTP",
+  "output_dir": "simulations/pfas_screening"
+}

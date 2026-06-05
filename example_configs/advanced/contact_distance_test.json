@@ -1,0 +1,10 @@
+{
+  "run_name": "contact_distance_test",
+  "probe": "benzene",
+  "target": "water",
+  "substrate": "vacuum",
+
+  "probe_target_distance": "contact",
+
+  "comment": "Probe and target will be placed at van der Waals contact distance (automatically calculated)"
+}

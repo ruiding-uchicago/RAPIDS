@@ -1,0 +1,7 @@
+{
+  "probe": "PFOS",
+  "substrate": "Cu_HHTP",
+  "probe_position": {"frac": [0.5, 0.5, 0.35]},
+  "probe_orientation": {"align": "flat"},
+  "output_dir": "simulations/pfos_pore_center"
+}

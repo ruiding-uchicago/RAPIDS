@@ -1,0 +1,6 @@
+{
+  "probe": "ammonia",
+  "substrate": "Si",
+  "probe_position": {"x": 0.5, "y": 0.5, "z": 8.0},
+  "probe_orientation": {"align": "standing"}
+}

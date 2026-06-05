@@ -1,0 +1,6 @@
+{
+  "probe": "ethanol",
+  "target": "water",
+  "substrate": "Graphene",
+  "probe_target_distance": 3.5
+}

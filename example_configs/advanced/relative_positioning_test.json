@@ -1,0 +1,17 @@
+{
+  "run_name": "relative_position_test",
+  "probe": "benzene",
+  "target": "water",
+  "substrate": "Graphene",
+
+  "probe_height": 3.0,
+
+  "target_position": {
+    "relative_to": "probe",
+    "lateral_offset": 4.0,
+    "vertical_offset": 1.0,
+    "direction": "x"
+  },
+
+  "comment": "This places water 4A to the right (+x) and 1A above benzene"
+}

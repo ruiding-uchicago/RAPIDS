@@ -1,0 +1,15 @@
+{
+  "run_name": "benzene_aspirin_solvated",
+  "probe": "benzene",
+  "target": "aspirin",
+  "substrate": "vacuum",
+
+  "solvation": {
+    "solvent": "water",
+    "mode": "auto",
+    "shell_thickness": 3.0,
+    "density": 1.0
+  },
+
+  "comment": "Automatic solvation: system calculates water count based on cluster size"
+}

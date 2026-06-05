@@ -1,0 +1,5 @@
+{
+  "probes": ["PFHxS", "PFOS", "PFDoDA", "PFOA", "PFNA", "PFBS", "PFHxA", "PFBA"],
+  "substrates": ["Co_HHTP", "Cu_HHTP", "Ni_HHTP"],
+  "output_dir": "simulations/pfas_mof_comprehensive"
+}

@@ -1,0 +1,6 @@
+{
+  "probe": "benzene",
+  "target": "toluene",
+  "substrate": "vacuum",
+  "box_size": [25, 25, 35]
+}

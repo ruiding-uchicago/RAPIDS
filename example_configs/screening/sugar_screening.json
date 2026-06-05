@@ -1,0 +1,10 @@
+{
+  "probes": ["glucose", "fructose", "sucrose", "ribose", "galactose"],
+  "target": "caffeine",
+  "substrate": "Graphene",
+  "comparison_name": "sugar_caffeine_interaction",
+  "task_name": "omat",
+  "probe_height": 2.5,
+  "target_height": 6.0,
+  "probe_target_distance": 4.0
+}
