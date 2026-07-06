@@ -1,0 +1,16 @@
+# Analysis-code dependencies for the RAPIDS fidelity-selection study.
+# The core RAPIDS engine deps (fairchem-core, ase, etc.) are NOT needed here:
+# both blocks operate on pre-computed / offline-replay tables, not live MLIP/DFT runs.
+
+# --- Core scientific stack (both blocks) ---
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+
+# --- rapids_select only ---
+xgboost            # per-arm error regressors + catastrophe classifiers
+optuna             # 67_hpo_transfer_aware.py (hyper-parameter search)
+adjustText         # optional figure scripts (65, 90) for label de-overlap
+rdkit              # only 49_build_p02_feature_matrix.py (charged feature build)
