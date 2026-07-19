@@ -6,7 +6,7 @@
 
 ## What RAPIDS does
 
-**RAPIDS** (Rapid Atomistic Probe–target Interaction Discovery Scaffold) is a *training-free, inference-time* scaffold wrapped around the pretrained FAIRChem **UMA omol** machine-learned interatomic potential (MLIP) head, used to screen **non-covalent probe–target binding**. The UMA weights are used as released (no fine-tuning); RAPIDS' contribution is the workflow *around* the pretrained model. For a probe–target(–substrate) pair it: (1) builds the complex, (2) runs a structured **three-tier orientation search** on the UMA energy surface — Tier 1 = 9 anchor/rotation placements (3×3), Tier 2 = 6 basin-hopping perturbations of the best Tier-1 pose, Tier 3 = 9 local random refinements, with energy/size-based tier-upgrade gates; (3) relaxes each candidate with **LBFGS** (f_max = 0.05 eV/Å, ≤100 steps) plus up to three **smart continuations**; (4) applies a **four-guard per-configuration validation stack** — *topology* (covalent-graph change vs. fallback-head consensus), *geometry* (MolProbity clash / bond strain), *energy* (|E_bind|/N_small ≤ 0.65 eV/atom and |E_bind| ≤ 2.2 eV catastrophic-failure ceiling), *convergence* — plus a scan-level **Energy Consistency Guard (ECG)** that picks a `minimum`/`median`/`manual_review` commit mode; (5) optionally attaches an **xTB GFN2 + ALPB implicit-water** solvation post-correction; and (6) can escalate flagged systems to higher-fidelity **DFT (GPU4PySCF)** or **CREST** arms. The scaffold is exposed to LLM agents as a progressively disclosed **Skill** backed by an **MCP server**. The benchmarked pathway in the paper is the *vacuum probe–target dimer* case run through the MCP `scan_orientations` path (so ECG is active).
+**RAPIDS** (Rapid Atomistic Probe–target Interaction Discovery Scaffold) is a *training-free, inference-time* scaffold wrapped around the pretrained FAIRChem **UMA omol** machine-learned interatomic potential (MLIP) head, used to screen **non-covalent probe–target binding**. The UMA weights are used as released (no fine-tuning); RAPIDS' contribution is the workflow *around* the pretrained model. For a probe–target(–substrate) pair it: (1) builds the complex, (2) runs a structured **three-tier orientation search** on the UMA energy surface — Tier 1 = 9 anchor/rotation placements (3×3), Tier 2 = 6 basin-hopping perturbations of the best Tier-1 pose, Tier 3 = 9 local random refinements, with energy/size-based tier-upgrade gates; (3) relaxes each candidate with **LBFGS** (f_max = 0.05 eV/Å, ≤100 steps) plus up to three **smart continuations**; (4) applies a **four-guard per-configuration validation stack** — *topology* (covalent-graph change vs. fallback-head consensus), *geometry* (MolProbity clash / bond strain), *energy* (|E_bind|/N_small ≤ 0.65 eV/atom and |E_bind| ≤ 2.2 eV catastrophic-failure ceiling), *convergence* — plus a scan-level **Energy Consistency Guard (ECG)** that picks a `minimum`/`median`/`manual_review` commit mode; (5) optionally attaches an **xTB GFN2 + ALPB implicit-water** solvation post-correction; and (6) can escalate flagged systems to higher-fidelity **DFT (ORCA by default, GPU4PySCF optional)** or **CREST** arms. The scaffold is exposed to LLM agents as a progressively disclosed **Skill** backed by an **MCP server**. The benchmarked pathway in the paper is the *vacuum probe–target dimer* case run through the MCP `scan_orientations` path (so ECG is active).
 
 Paper grounding: `…/ICML2025/sections/part2_methods.tex` §2.2 (RAPIDS Scaffold); guards/thresholds/pseudocode in `…/ICML2025/sections/appendix_methods_details.tex` (`app:methods-rapids-details`, ~lines 303–525); MCP/Skill in `part2_5_mcp_agent_interface.tex` and `part1_6_mcp_skills_progressive_disclosure.tex`. The repo's own `rapids_architecture.tex` mirrors this (Module Organization, Tiered Orientation Scanning, Validation Guardrails, Algorithmic Summary).
 
@@ -40,11 +40,12 @@ All files below live at the **repo root** and import each other **flat** (e.g. `
 
 | Path | Role | Paper component |
 |---|---|---|
-| `pyscf_opt_tests/run_geomopt_gpu.py` | GPU4PySCF DFT **geometry optimization** of a RAPIDS-committed pose (PBE/def2-SVP+D3BJ protocol shown). | **DFT escalation (GeoSP arms)** |
-| `pyscf_opt_tests/run_sp_gpu.py` | GPU4PySCF DFT **single-point** on a RAPIDS geometry. | **DFT escalation (SP arms)** |
+| `pyscf_opt_tests/run_geomopt_gpu.py` | Selectable ORCA (default) / GPU4PySCF **geometry optimization + single point**: def2-TZVP TightOpt followed by def2-TZVPD SP. | **DFT escalation (GeoSP arms)** |
+| `pyscf_opt_tests/run_sp_gpu.py` | Selectable ORCA (default) / GPU4PySCF **single-point** on a RAPIDS geometry at def2-TZVP. | **DFT escalation (SP arms)** |
+| `pyscf_opt_tests/orca_backend.py` | Shared ORCA input writer, subprocess/MPI launcher, normal-termination validator, and final-energy parser. | **DFT escalation runtime** |
 | `pyscf_opt_tests/` (rest), `geomopt_results/` | Inputs/outputs of the above (a `.vasp` pose, `sp_results/`, `geomopt_results/`, `summary.json`). | DFT escalation outputs |
 
-CREST is referenced in the paper as a baseline arm; in this repo it appears only as escalation *advice strings* in `mcp_server.py` (lines ~128, ~411 mention DFT/gpu4pyscf). No CREST driver script is present in the repo (CREST baseline was run out-of-tree).
+CREST is referenced in the paper as a baseline arm; in this repo it appears only as escalation *advice strings* in `mcp_server.py` (lines ~128, ~411 mention DFT verification). No CREST driver script is present in the repo (CREST baseline was run out-of-tree).
 
 ---
 
@@ -58,7 +59,7 @@ CREST is referenced in the paper as a baseline arm; in this repo it appears only
 - **Batch geometry opt:** `python batch_opt.py /path/to/folder [--relax-cell] [--iso-2d]`.
 - **Web GUI:** `python web_server.py` → open `http://localhost:5001`.
 - **One-time setup:** `python download_model.py` (HuggingFace UMA access required).
-- **DFT escalation (manual):** `python pyscf_opt_tests/run_geomopt_gpu.py …` / `run_sp_gpu.py …` (needs `gpu4pyscf`, GPU).
+- **DFT escalation (manual):** `python pyscf_opt_tests/run_geomopt_gpu.py …` / `run_sp_gpu.py …` (ORCA default; pass `--backend gpu4pyscf` for the optional CUDA backend).
 
 ---
 
@@ -70,7 +71,7 @@ From `requirements.txt`:
 - **Web GUI:** `flask>=2.3.0`, `flask-cors>=4.0.0`.
 - **MCP:** `mcp>=1.0.0`.
 
-Imported but **not pinned in requirements** (gaps to add for a clean release): `numpy`, `scipy` (rotations in `simulation_builder.py`), `matplotlib` (`batch_comparison.py`), `rdkit` (2D→3D, optional), `torch` (`benchmark_fairchem_modes.py`, pulled by fairchem), `xtb` / xtb-python (solvation, optional), `huggingface_hub` (`download_model.py`), and for DFT escalation `pyscf` + `gpu4pyscf` (GPU-only, reasonably kept as an optional extra). `ase` ships with fairchem-core.
+The optional CUDA DFT stack (`pyscf`, `gpu4pyscf`, and `geometric`) is isolated in `requirements-gpu4pyscf.txt`. ORCA is an external executable and therefore is not a pip requirement. `ase` ships with fairchem-core.
 
 ---
 
@@ -207,5 +208,5 @@ HT.v_1.61579.txt
 2. **Doc drift — RESOLVED.** Naming and versions are reconciled for release: README, USER_MANUAL, and `version.py` all read "...Discovery **Scaffold**" at **v1.10.0**, matching the paper and `rapids_architecture.tex`. (The earlier draft mixed "System"/"Scaffold", versions 1.4.0/1.8.0/1.10.0, and a stray pre-rename folder name in the README; all reconciled.)
 3. **Hard-coded absolute paths — RESOLVED.** `pyscf_opt_tests/run_sp_gpu.py` / `run_geomopt_gpu.py` no longer hard-code `/media/...`; input structures come from `RAPIDS_*` environment variables with `argparse` CLI overrides, so the runners are portable across machines.
 4. **`HT.v_1.61579.txt`** (~4 MB) is an orphan with no code reference — now in `.gitignore`, so excluded from the repo/release (left on disk, not deleted).
-5. **requirements.txt — RESOLVED (flat list).** Now lists the full runtime + escalation stack (numpy, scipy, matplotlib, rdkit, torch, ase, huggingface_hub, xtb, pyscf, gpu4pyscf alongside fairchem-core, pubchempy, flask, flask-cors, mcp). Kept as one flat list rather than `[gui]`/`[dft]` extras (no `pyproject.toml` here; see finding 1).
+5. **requirements.txt — RESOLVED.** Core/runtime packages remain in `requirements.txt`; the optional CUDA DFT stack is in `requirements-gpu4pyscf.txt`. ORCA is managed as an external installation.
 6. **CREST** appears only as advice text in `mcp_server.py`; the CREST baseline driver is not in this repo (run out-of-tree). Fine for a RAPIDS-only release, but worth a one-line note in the README.

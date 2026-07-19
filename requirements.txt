@@ -20,6 +20,6 @@ huggingface_hub
 # --- Optional: xTB implicit-solvation post-correction ---
 xtb
 
-# --- Optional: DFT escalation arms (SP / GeoSP), GPU ---
-pyscf
-gpu4pyscf
+# --- DFT escalation arms ---
+# ORCA is the default external backend and is not installed by pip.
+# For the optional GPU4PySCF backend, install requirements-gpu4pyscf.txt.

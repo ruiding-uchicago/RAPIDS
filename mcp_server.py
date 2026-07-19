@@ -125,8 +125,8 @@ def _run_flow_worker(config: dict, workspace: str) -> dict:
     1. After optimization, check intramolecular bond topology preservation.
     2. If topology changed, re-run with up to 2 fallback ML task heads.
     3. Majority vote: 2/3 or 3/3 broken → confidence=low; 1/3 → confidence=medium.
-    4. If 3/3 ML tasks agree on breakage, escalate to DFT (gpu4pyscf) for
-       definitive classification.
+    4. If 3/3 ML tasks agree on breakage, escalate to DFT (ORCA by default,
+       or GPU4PySCF) for definitive classification.
     """
     import gc
 
@@ -408,7 +408,8 @@ def _run_flow_worker(config: dict, workspace: str) -> dict:
             validation["dft_recommended"] = True
             validation["alerts"].append(
                 "All ML tasks (omol/oc20/omat) show topology change. "
-                "Consider DFT verification with gpu4pyscf if this molecular pair is important."
+                "Consider DFT verification with ORCA (default) or GPU4PySCF "
+                "if this molecular pair is important."
             )
 
         result["validation"] = validation

@@ -110,6 +110,33 @@ Or create your own minimal config:
 }
 ```
 
+### DFT escalation: ORCA (default) or GPU4PySCF
+
+The SP and GeoSP runners now use **ORCA by default**. Their historical
+`*_gpu.py` filenames are retained for compatibility. On macOS they look for
+ORCA 6.1.1 at `~/Library/orca_6_1_1/orca` and OpenMPI at
+`~/Library/openmpi-4.1.1`; override these with `--orca-executable` and
+`--orca-openmpi-root` (or `RAPIDS_ORCA_EXE` / `RAPIDS_OPENMPI_ROOT`).
+
+```bash
+# Single-point arm; add --probe and --target to obtain a binding energy
+python pyscf_opt_tests/run_sp_gpu.py \
+  --functional pbe-d3bj --complex complex.xyz
+
+# Geometry optimization (def2-TZVP) followed by def2-TZVPD single point
+python pyscf_opt_tests/run_geomopt_gpu.py \
+  --functional pbe-d3bj --complex complex.xyz --orca-nprocs 4
+
+# Optional CUDA backend
+pip install -r requirements-gpu4pyscf.txt
+python pyscf_opt_tests/run_sp_gpu.py \
+  --backend gpu4pyscf --functional pbe-d3bj --complex complex.xyz
+```
+
+Available functionals are `pbe-d3bj`, `wb97x-d3bj`, and `wb97m-v`; use
+`--functional all` to run all three. ORCA wB97M-V jobs use `SCNL` so the VV10
+nonlocal correlation is included self-consistently, matching the GPU4PySCF arm.
+
 ### Backbone selection (UMA / MACE-omol / ORB-omol)
 
 RAPIDS runs on the FAIRChem **UMA omol** head by default. The relaxation/scoring

@@ -1,0 +1,4 @@
+# Optional CUDA DFT backend used by pyscf_opt_tests/run_*_gpu.py
+pyscf
+gpu4pyscf
+geometric
