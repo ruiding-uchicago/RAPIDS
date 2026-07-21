@@ -10,6 +10,11 @@
 
 ---
 
+## Paper Data
+
+The data supporting the paper are available on Zenodo:
+[10.5281/zenodo.20544147](https://doi.org/10.5281/zenodo.20544147).
+
 ## 🚀 First Time Using Python? Start Here!
 
 **New to Python?** No worries! Here's the simplest way to get started:
