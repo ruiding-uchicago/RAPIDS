@@ -1094,12 +1094,68 @@ class SimulationBuilder:
                     structures["probe_target_solvated"] = complex_solvated
                     print(f"Created: probe_target_solvated ({complex_solv_info['solvent_count']} {complex_solv_info['solvent']} molecules)")
 
-        # Set charge and spin in atoms.info for all structures (required for omol task)
-        if self.charge != 0 or self.spin != 1:
-            print(f"\nSetting charge={self.charge}, spin={self.spin} for all structures (omol task)")
-        for name, atoms in structures.items():
-            atoms.info["charge"] = self.charge
-            atoms.info["spin"] = self.spin
+        # Set charge and spin in atoms.info for all structures (required for omol task).
+        #
+        # Assign the PER-FRAGMENT net charge to each structure, NOT the complex charge
+        # to everything. A probe-only or target-only structure must carry its own
+        # monomer charge, otherwise the interaction energy
+        # E_int = E(complex) - E(probe) - E(target) is wrong for every charged system
+        # (e.g. a salt bridge with complex=0, probe=+1, target=-1 was being computed
+        # with probe=target=0, losing the full +1/-1 electrostatics).
+        #
+        # Per-fragment charges come from config: probe_charge / target_charge
+        # (substrate_charge optional, default 0). If they are not supplied we cannot
+        # split a nonzero complex charge across monomers, so we fall back to the legacy
+        # behaviour (complex charge on every structure) but warn loudly.
+        probe_charge = self.config.get("probe_charge")
+        target_charge = self.config.get("target_charge")
+        substrate_charge = self.config.get("substrate_charge", 0)
+
+        # Which fragments each structure key contains: (probe, target, substrate).
+        # Solvent is neutral and contributes 0.
+        _frag_membership = {
+            "substrate_only":         (False, False, True),
+            "probe_substrate":        (True,  False, True),
+            "probe_vacuum":           (True,  False, False),
+            "target_vacuum":          (False, True,  False),
+            "probe_target_vacuum":    (True,  True,  False),
+            "probe_target_substrate": (True,  True,  True),
+            "probe_solvated":         (True,  False, False),
+            "target_solvated":        (False, True,  False),
+            "probe_target_solvated":  (True,  True,  False),
+        }
+
+        if probe_charge is None or target_charge is None:
+            if self.charge != 0:
+                print(f"\n[WARNING] probe_charge/target_charge not provided in config; "
+                      f"assigning complex charge={self.charge} to ALL structures. "
+                      f"Monomer (probe-only/target-only) energies will be WRONG for "
+                      f"charged systems -> interaction energies invalid. Pass "
+                      f"probe_charge & target_charge to get correct per-fragment charges.")
+            elif self.spin != 1:
+                print(f"\nSetting charge={self.charge}, spin={self.spin} for all structures (omol task)")
+            for name, atoms in structures.items():
+                atoms.info["charge"] = self.charge
+                atoms.info["spin"] = self.spin
+        else:
+            probe_charge = int(probe_charge)
+            target_charge = int(target_charge)
+            substrate_charge = int(substrate_charge)
+            print(f"\nSetting per-fragment charges: probe={probe_charge}, "
+                  f"target={target_charge}, substrate={substrate_charge} (omol task)")
+            for name, atoms in structures.items():
+                mem = _frag_membership.get(name)
+                if mem is None:
+                    # Unknown structure key: safest is the complex charge.
+                    q = self.charge
+                    print(f"  [WARNING] unknown structure '{name}', using complex "
+                          f"charge={q}")
+                else:
+                    has_p, has_t, has_s = mem
+                    q = (probe_charge * has_p + target_charge * has_t
+                         + substrate_charge * has_s)
+                atoms.info["charge"] = q
+                atoms.info["spin"] = self.spin
 
         return structures
         
