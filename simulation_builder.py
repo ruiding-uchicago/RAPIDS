@@ -1098,11 +1098,30 @@ class SimulationBuilder:
         if self.charge != 0 or self.spin != 1:
             print(f"\nSetting charge={self.charge}, spin={self.spin} for all structures (omol task)")
         for name, atoms in structures.items():
-            atoms.info["charge"] = self.charge
+            atoms.info["charge"] = self._frag_charge(name)
             atoms.info["spin"] = self.spin
 
         return structures
         
+    def _frag_charge(self, name: str) -> int:
+        """Net charge of the structure called ``name``.
+
+        With ``probe_charge`` and ``target_charge`` in the config, each
+        structure gets the sum of the charges of the fragments it contains
+        (probe, target, substrate), so monomers are evaluated at their own
+        charge. Without them, every structure gets ``charge`` as before.
+        """
+        pc = self.config.get("probe_charge")
+        tc = self.config.get("target_charge")
+        if pc is None or tc is None:
+            return self.charge
+        sc = int(self.config.get("substrate_charge", 0))
+        n = name.lower()
+        has_p, has_t, has_s = "probe" in n, "target" in n, "substrate" in n
+        if not (has_p or has_t or has_s):
+            return self.charge
+        return int(pc) * has_p + int(tc) * has_t + sc * has_s
+
     def save_structures(self, structures: Dict[str, Atoms]):
         """Save all structures to files"""
         print("\n" + "="*60)

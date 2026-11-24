@@ -244,6 +244,25 @@ class SmartFAIRChemFlow:
 
         return self._calculator_cache[comp_key]
             
+    def _frag_charge(self, name: str) -> int:
+        """Net charge of the structure called ``name``.
+
+        With ``probe_charge`` and ``target_charge`` in the config, each
+        structure gets the sum of the charges of the fragments it contains
+        (probe, target, substrate), so monomers are evaluated at their own
+        charge. Without them, every structure gets ``charge`` as before.
+        """
+        pc = self.config.get("probe_charge")
+        tc = self.config.get("target_charge")
+        if pc is None or tc is None:
+            return self.charge
+        sc = int(self.config.get("substrate_charge", 0))
+        n = name.lower()
+        has_p, has_t, has_s = "probe" in n, "target" in n, "substrate" in n
+        if not (has_p or has_t or has_s):
+            return self.charge
+        return int(pc) * has_p + int(tc) * has_t + sc * has_s
+
     def smart_optimize(self, atoms: Atoms, name: str,
                       fix_substrate: bool = False) -> Tuple[Atoms, dict]:
         """
@@ -261,7 +280,7 @@ class SmartFAIRChemFlow:
         opt_atoms = atoms.copy()
 
         # Ensure charge and spin are set in atoms.info (required for omol task)
-        opt_atoms.info["charge"] = self.charge
+        opt_atoms.info["charge"] = self._frag_charge(name)
         opt_atoms.info["spin"] = self.spin
 
         # Get calculator for this specific composition (turbo mode compatible)

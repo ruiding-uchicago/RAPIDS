@@ -1712,6 +1712,10 @@ async def handle_build_simulation(args: dict) -> list[TextContent]:
         # Charge and spin parameters (omol task only)
         if "charge" in args:
             config["charge"] = args["charge"]
+        # Per-fragment charges: monomers are then run at their own charge
+        for key in ("probe_charge", "target_charge", "substrate_charge"):
+            if key in args:
+                config[key] = args[key]
         if "spin" in args:
             config["spin"] = args["spin"]
 
